@@ -20,22 +20,23 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('UTC'));
     }
 
-    // 2. Configura Android
+    // 2. Inicialização Android
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
 
     await flutterLocalNotificationsPlugin.initialize(initSettings);
     
-    // 3. Pede Permissões
+    // 3. Pede Permissões e CRIA O CANAL (Essencial para Samsung/Xiaomi/Motorola)
     final androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    
     await androidImplementation?.requestNotificationsPermission();
     
-    // CRIAÇÃO EXPLÍCITA DO CANAL (Isso resolve muitos problemas de "não tocar")
+    // Criando o canal explicitamente para garantir que o som toque
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'canal_vacinas', 
       'Lembretes de Vacina',
-      description: 'Notificações agendadas para o gado',
-      importance: Importance.max,
+      description: 'Notificações importantes do rebanho',
+      importance: Importance.max, // Som alto e vibração
       playSound: true,
     );
     await androidImplementation?.createNotificationChannel(channel);
@@ -82,26 +83,23 @@ class NotificationService {
     );
   }
 
-  // --- AGENDAMENTO REAL ---
+  // Função Principal de Agendamento
   Future<void> agendarNotificacao({
     required int id,
     required String titulo,
     required String corpo,
     required DateTime dataAgendada,
   }) async {
-    // Tenta agendar para as 08:00
-    var dataAlvo = DateTime(
+    // Define horário para 08:00 da manhã
+    final dataAlvo = DateTime(
       dataAgendada.year,
       dataAgendada.month,
       dataAgendada.day,
       8, 0, 
     );
 
-    // Se já passou das 08:00 de hoje, não agenda (ou agende para teste mudando a hora aqui)
-    if (dataAlvo.isBefore(DateTime.now())) {
-        print("Tentativa de agendar para o passado ignorada: $dataAlvo");
-        return;
-    }
+    // Evita agendar no passado
+    if (dataAlvo.isBefore(DateTime.now())) return;
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id,
@@ -110,13 +108,14 @@ class NotificationService {
       tz.TZDateTime.from(dataAlvo, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'canal_vacinas',
+          'canal_vacinas', // Deve ser o mesmo ID criado no init()
           'Lembretes de Vacina',
           importance: Importance.max,
           priority: Priority.high,
+          fullScreenIntent: true, // Tenta mostrar mesmo com tela bloqueada
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle, // OBRIGATÓRIO para Android 12+
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }

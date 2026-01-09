@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../services/pdf_service.dart';
-import '../services/notification_service.dart'; // Import do serviço
+// Removi o import do notification_service pois não vamos mais usar testes aqui
 import 'cadastro_animal_screen.dart';
 import 'financas_screen.dart';
 import 'vacinas_screen.dart';
 import 'dashboard_screen.dart';
-import 'backup_screen.dart'; // Import do backup
+import 'backup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -100,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: "PDF",
           ),
           
-          // --- MENU DE CONFIGURAÇÕES ---
+          // --- MENU DE OPÇÕES (LIMPO) ---
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'backup') {
@@ -108,21 +108,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (c) => const BackupScreen()),
                 );
+                // Se restaurou dados, recarrega a lista
                 if (result == true) _atualizarLista();
-              } else if (value == 'teste_notificacao') {
-                await NotificationService().mostrarNotificacaoImediata();
-              } else if (value == 'teste_agendado') {
-                // AGENDA O TESTE DE 1 MINUTO
-                await NotificationService().agendarTesteRapido();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("⏰ Alarme definido para daqui 1 minuto! Pode fechar o app."),
-                      backgroundColor: Colors.orange,
-                      duration: Duration(seconds: 4),
-                    )
-                  );
-                }
               }
             },
             itemBuilder: (BuildContext context) {
@@ -134,27 +121,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(Icons.settings_backup_restore, color: Colors.black54),
                       SizedBox(width: 10),
                       Text('Backup e Dados'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'teste_notificacao',
-                  child: Row(
-                    children: [
-                      Icon(Icons.notifications_active, color: Colors.blue),
-                      SizedBox(width: 10),
-                      Text('Teste Imediato'),
-                    ],
-                  ),
-                ),
-                // --- NOVO BOTÃO DE TESTE ---
-                const PopupMenuItem<String>(
-                  value: 'teste_agendado',
-                  child: Row(
-                    children: [
-                      Icon(Icons.timer, color: Colors.deepOrange),
-                      SizedBox(width: 10),
-                      Text('Testar Agendamento (1 min)'),
                     ],
                   ),
                 ),
@@ -178,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Column(
         children: [
+          // ÁREA DE BUSCA E FILTROS
           Container(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
             color: Theme.of(context).primaryColor.withOpacity(0.05),
@@ -231,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
+          // LISTA DE ANIMAIS
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator())
