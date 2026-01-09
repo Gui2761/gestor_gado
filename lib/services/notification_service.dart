@@ -11,46 +11,97 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
+    // 1. Configura Fuso Horário
     tz.initializeTimeZones();
-    
-    // CORREÇÃO 1: Usamos 'var' porque o tipo retornado pode variar dependendo da versão
-    var timeZoneName = await FlutterTimezone.getLocalTimezone();
-    
     try {
-      // CORREÇÃO 2: Forçamos .toString() para garantir que seja texto
-      tz.setLocalLocation(tz.getLocation(timeZoneName.toString()));
+      var timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
     } catch (e) {
-      // Se falhar, usa UTC como segurança
       tz.setLocalLocation(tz.getLocation('UTC'));
     }
 
+    // 2. Configura Android
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
 
     await flutterLocalNotificationsPlugin.initialize(initSettings);
     
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    // 3. Pede Permissões
+    final androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidImplementation?.requestNotificationsPermission();
+    
+    // CRIAÇÃO EXPLÍCITA DO CANAL (Isso resolve muitos problemas de "não tocar")
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'canal_vacinas', 
+      'Lembretes de Vacina',
+      description: 'Notificações agendadas para o gado',
+      importance: Importance.max,
+      playSound: true,
+    );
+    await androidImplementation?.createNotificationChannel(channel);
   }
 
+  // --- TESTE RÁPIDO (1 MINUTO) ---
+  Future<void> agendarTesteRapido() async {
+    final agora = tz.TZDateTime.now(tz.local);
+    final daquiUmMinuto = agora.add(const Duration(minutes: 1));
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      999, 
+      'Teste Agendado ⏳',
+      'Se você viu isso, as vacinas vão funcionar!',
+      daquiUmMinuto,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'canal_vacinas', // Mesmo canal das vacinas
+          'Lembretes de Vacina',
+          importance: Importance.max,
+          priority: Priority.high,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+    );
+  }
+
+  // --- TESTE IMEDIATO ---
+  Future<void> mostrarNotificacaoImediata() async {
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'canal_vacinas',
+      'Lembretes de Vacina',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      888,
+      'Teste Imediato 🔔',
+      'O sistema de notificações está ativo.',
+      details,
+    );
+  }
+
+  // --- AGENDAMENTO REAL ---
   Future<void> agendarNotificacao({
     required int id,
     required String titulo,
     required String corpo,
     required DateTime dataAgendada,
   }) async {
-    
-    final dataAlvo = DateTime(
+    // Tenta agendar para as 08:00
+    var dataAlvo = DateTime(
       dataAgendada.year,
       dataAgendada.month,
       dataAgendada.day,
-      8, 
-      0, // 08:00 da manhã
+      8, 0, 
     );
 
-    if (dataAlvo.isBefore(DateTime.now())) return;
+    // Se já passou das 08:00 de hoje, não agenda (ou agende para teste mudando a hora aqui)
+    if (dataAlvo.isBefore(DateTime.now())) {
+        print("Tentativa de agendar para o passado ignorada: $dataAlvo");
+        return;
+    }
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id,
@@ -66,8 +117,6 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      // Se o erro vermelho persistir aqui, é bug visual do VS Code.
-      // O comando 'flutter pub get' abaixo resolve.
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }

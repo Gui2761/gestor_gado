@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../services/pdf_service.dart';
+import '../services/notification_service.dart'; // Import do serviço
 import 'cadastro_animal_screen.dart';
 import 'financas_screen.dart';
 import 'vacinas_screen.dart';
 import 'dashboard_screen.dart';
+import 'backup_screen.dart'; // Import do backup
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,14 +18,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Listas para controle da pesquisa
   List<Animal> _todosAnimais = [];
   List<Animal> _animaisFiltrados = [];
   bool _isLoading = true;
 
-  // Controles de Filtro
   String _filtroBusca = "";
-  String _filtroStatus = "Todos"; // Opções: Todos, Ativo, Vendido, Morto, Doente
+  String _filtroStatus = "Todos"; 
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -33,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _atualizarLista();
   }
 
-  // Busca os dados do SQLite e guarda na memória para filtrar rápido
   void _atualizarLista() async {
     setState(() => _isLoading = true);
     final data = await DatabaseHelper.instance.queryAllAnimais();
@@ -41,26 +40,20 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _todosAnimais = data.map((e) => Animal.fromMap(e)).toList();
       _isLoading = false;
-      _aplicarFiltros(); // Aplica os filtros logo após carregar
+      _aplicarFiltros(); 
     });
   }
 
-  // Lógica Inteligente de Filtro (Busca + Status ao mesmo tempo)
   void _aplicarFiltros() {
     setState(() {
       _animaisFiltrados = _todosAnimais.where((boi) {
-        // 1. Filtro de Texto (Brinco ou Nome)
-        // Verifica se o texto digitado existe no brinco OU no nome
         final termo = _filtroBusca.toLowerCase();
         final matchTexto = 
           boi.brinco.toLowerCase().contains(termo) ||
           (boi.nome != null && boi.nome!.toLowerCase().contains(termo));
 
-        // 2. Filtro de Status
-        // Se for "Todos", aceita qualquer coisa. Se não, tem que bater o status.
         final matchStatus = _filtroStatus == "Todos" ? true : boi.status == _filtroStatus;
 
-        // O animal só aparece se passar nos DOIS testes
         return matchTexto && matchStatus;
       }).toList();
     });
@@ -82,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar personalizada
       appBar: AppBar(
         title: const Text("Gestão de Gado"),
         elevation: 0,
@@ -107,6 +99,68 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.picture_as_pdf),
             tooltip: "PDF",
           ),
+          
+          // --- MENU DE CONFIGURAÇÕES ---
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'backup') {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const BackupScreen()),
+                );
+                if (result == true) _atualizarLista();
+              } else if (value == 'teste_notificacao') {
+                await NotificationService().mostrarNotificacaoImediata();
+              } else if (value == 'teste_agendado') {
+                // AGENDA O TESTE DE 1 MINUTO
+                await NotificationService().agendarTesteRapido();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("⏰ Alarme definido para daqui 1 minuto! Pode fechar o app."),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 4),
+                    )
+                  );
+                }
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                const PopupMenuItem<String>(
+                  value: 'backup',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_backup_restore, color: Colors.black54),
+                      SizedBox(width: 10),
+                      Text('Backup e Dados'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'teste_notificacao',
+                  child: Row(
+                    children: [
+                      Icon(Icons.notifications_active, color: Colors.blue),
+                      SizedBox(width: 10),
+                      Text('Teste Imediato'),
+                    ],
+                  ),
+                ),
+                // --- NOVO BOTÃO DE TESTE ---
+                const PopupMenuItem<String>(
+                  value: 'teste_agendado',
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer, color: Colors.deepOrange),
+                      SizedBox(width: 10),
+                      Text('Testar Agendamento (1 min)'),
+                    ],
+                  ),
+                ),
+              ];
+            },
+          ),
         ],
       ),
       
@@ -124,13 +178,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Column(
         children: [
-          // --- ÁREA DE PESQUISA E FILTROS ---
           Container(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
-            color: Theme.of(context).primaryColor.withOpacity(0.05), // Fundo leve
+            color: Theme.of(context).primaryColor.withOpacity(0.05),
             child: Column(
               children: [
-                // 1. Campo de Busca
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
@@ -149,7 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ) 
                       : null,
                     filled: true,
-                    // Usa a cor do cartão do tema atual (adapta ao modo escuro)
                     fillColor: Theme.of(context).cardColor,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 20),
@@ -164,7 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 
                 const SizedBox(height: 10),
 
-                // 2. Chips de Filtro (Botões horizontais de rolagem)
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -181,7 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
-          // --- LISTA DE ANIMAIS ---
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator())
@@ -211,8 +260,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          
-                          // Clique para Editar
                           onTap: () async {
                             final result = await Navigator.push(
                               context,
@@ -222,8 +269,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                             if (result == true) _atualizarLista();
                           },
-
-                          // Foto do Animal
                           leading: CircleAvatar(
                             radius: 28,
                             backgroundImage: (animal.fotoPath != null && File(animal.fotoPath!).existsSync())
@@ -232,8 +277,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: (animal.fotoPath == null || !File(animal.fotoPath!).existsSync())
                                 ? const Icon(Icons.pets) : null,
                           ),
-                          
-                          // Título (Brinco e Nome)
                           title: Row(
                             children: [
                               Text(
@@ -242,15 +285,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               if (animal.nome != null && animal.nome!.isNotEmpty)
                                 Flexible(
-                                  child: Text(
-                                    " (${animal.nome})", 
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                  ),
+                                  child: Text(" (${animal.nome})", overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
                                 ),
                             ],
                           ),
-                          
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -259,7 +297,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  // Etiqueta de Status colorida
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
@@ -277,8 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               )
                             ],
                           ),
-                          
-                          // Botão de Excluir
                           trailing: IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
                             onPressed: () {
@@ -312,7 +347,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Componente visual do botão de filtro (Chip)
   Widget _buildFilterChip(String label) {
     final bool isSelected = _filtroStatus == label;
     return Padding(
@@ -323,20 +357,18 @@ class _HomeScreenState extends State<HomeScreen> {
         onSelected: (bool selected) {
           setState(() {
             _filtroStatus = label;
-            _aplicarFiltros(); // Refiltra ao clicar
+            _aplicarFiltros();
           });
         },
         selectedColor: Theme.of(context).primaryColor,
         labelStyle: TextStyle(
           color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyMedium?.color
         ),
-        // Cor do fundo quando não selecionado (adapta ao tema)
         backgroundColor: Theme.of(context).cardColor,
       ),
     );
   }
 
-  // Define a cor da etiqueta baseada no status
   Color _getCorStatus(String status) {
     switch (status) {
       case 'Ativo': return Colors.green;

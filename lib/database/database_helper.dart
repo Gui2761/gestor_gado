@@ -71,64 +71,65 @@ CREATE TABLE vacinas (
     db.close();
   }
 
-  // ---------------------------------------------------
-  // MÉTODOS: ANIMAIS
-  // ---------------------------------------------------
+  // --- FUNÇÕES NOVAS PARA O BACKUP ---
+  
+  // 1. Descobre onde o arquivo do banco está no celular
+  Future<String> getDbPath() async {
+    final dbPath = await getDatabasesPath();
+    return join(dbPath, 'fazenda.db');
+  }
 
+  // 2. Fecha a conexão e limpa a variável (Essencial para Restauração)
+  Future<void> closeAndReset() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+  // -----------------------------------
+
+  // MÉTODOS: ANIMAIS
   Future<int> insertAnimal(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('animais', row);
   }
-  // --- NOVO MÉTODO DE ATUALIZAR ---
   Future<int> updateAnimal(Map<String, dynamic> row) async {
     Database db = await instance.database;
     int id = row['id'];
     return await db.update('animais', row, where: 'id = ?', whereArgs: [id]);
   }
-
   Future<List<Map<String, dynamic>>> queryAllAnimais() async {
     Database db = await instance.database;
-    return await db.query('animais', orderBy: "id DESC"); // Mais recentes primeiro
+    return await db.query('animais', orderBy: "id DESC");
   }
-
   Future<int> deleteAnimal(int id) async {
     Database db = await instance.database;
     return await db.delete('animais', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ---------------------------------------------------
   // MÉTODOS: FINANÇAS
-  // ---------------------------------------------------
-
   Future<int> insertTransacao(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('financas', row);
   }
-
   Future<List<Map<String, dynamic>>> queryAllTransacoes() async {
     Database db = await instance.database;
     return await db.query('financas', orderBy: "id DESC"); 
   }
-
   Future<int> deleteTransacao(int id) async {
     Database db = await instance.database;
     return await db.delete('financas', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ---------------------------------------------------
-  // MÉTODOS: VACINAS / SAÚDE
-  // ---------------------------------------------------
-
+  // MÉTODOS: VACINAS
   Future<int> insertVacina(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('vacinas', row);
   }
-
   Future<List<Map<String, dynamic>>> queryAllVacinas() async {
     Database db = await instance.database;
     return await db.query('vacinas', orderBy: "data_aplicacao DESC");
   }
-
   Future<int> deleteVacina(int id) async {
     Database db = await instance.database;
     return await db.delete('vacinas', where: 'id = ?', whereArgs: [id]);
