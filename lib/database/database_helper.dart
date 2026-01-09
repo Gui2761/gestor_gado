@@ -9,14 +9,13 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('fazenda.db');
+    _database = await _initDB('fazenda_v3.db'); // Mudei para v3 para aplicar a nova tabela
     return _database!;
   }
 
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-
     return await openDatabase(path, version: 1, onCreate: _createDB);
   }
 
@@ -24,8 +23,8 @@ class DatabaseHelper {
     const idType = 'INTEGER PRIMARY KEY AUTOINCREMENT';
     const textType = 'TEXT NOT NULL';
     const doubleType = 'REAL NOT NULL';
+    const intType = 'INTEGER'; // Pode ser nulo (se for uma despesa avulsa)
 
-    // 1. Tabela Animais
     await db.execute('''
       CREATE TABLE animais ( 
         id $idType, 
@@ -40,30 +39,31 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. Tabela Finanças
+    // Tabela Finanças ATUALIZADA (com animal_id)
     await db.execute('''
       CREATE TABLE financas (
         id $idType,
         tipo $textType,
         descricao $textType,
         valor $doubleType,
-        data $textType
+        data $textType,
+        animal_id $intType 
       )
     ''');
 
-    // 3. Tabela Vacinas
     await db.execute('''
-      CREATE TABLE vacinas (
+      CREATE TABLE manejo (
         id $idType,
+        animal_id INTEGER NOT NULL,
+        categoria $textType,
         nome $textType,
-        data_aplicacao $textType,
-        data_proxima TEXT,
-        observacao $textType
+        data $textType,
+        observacao TEXT,
+        FOREIGN KEY (animal_id) REFERENCES animais (id) ON DELETE CASCADE
       )
     ''');
   }
 
-  // --- FUNÇÕES DE CONTROLE ---
   Future<void> closeAndReset() async {
     if (_database != null) {
       await _database!.close();
@@ -73,10 +73,10 @@ class DatabaseHelper {
 
   Future<String> getDbPath() async {
     final dbPath = await getDatabasesPath();
-    return join(dbPath, 'fazenda.db');
+    return join(dbPath, 'fazenda_v3.db');
   }
 
-  // --- MÉTODOS ANIMAIS ---
+  // --- ANIMAIS ---
   Future<int> insertAnimal(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('animais', row);
@@ -84,8 +84,7 @@ class DatabaseHelper {
 
   Future<int> updateAnimal(Map<String, dynamic> row) async {
     Database db = await instance.database;
-    int id = row['id'];
-    return await db.update('animais', row, where: 'id = ?', whereArgs: [id]);
+    return await db.update('animais', row, where: 'id = ?', whereArgs: [row['id']]);
   }
 
   Future<List<Map<String, dynamic>>> queryAllAnimais() async {
@@ -95,10 +94,12 @@ class DatabaseHelper {
 
   Future<int> deleteAnimal(int id) async {
     Database db = await instance.database;
+    await db.delete('manejo', where: 'animal_id = ?', whereArgs: [id]);
+    // Opcional: Apagar vendas associadas também? Por segurança, vamos manter o financeiro.
     return await db.delete('animais', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- MÉTODOS FINANÇAS ---
+  // --- FINANÇAS ---
   Future<int> insertTransacao(Map<String, dynamic> row) async {
     Database db = await instance.database;
     return await db.insert('financas', row);
@@ -114,19 +115,58 @@ class DatabaseHelper {
     return await db.delete('financas', where: 'id = ?', whereArgs: [id]);
   }
 
-  // --- MÉTODOS VACINAS ---
-  Future<int> insertVacina(Map<String, dynamic> row) async {
+  // --- FUNÇÕES NOVAS DE VINCULO (Venda <-> Boi) ---
+  
+  // 1. Busca a venda associada a um boi
+  Future<Map<String, dynamic>?> getVendaPorAnimal(int animalId) async {
     Database db = await instance.database;
-    return await db.insert('vacinas', row);
+    final res = await db.query('financas', 
+      where: 'animal_id = ? AND tipo = ?', 
+      whereArgs: [animalId, 'VENDA'],
+      limit: 1
+    );
+    return res.isNotEmpty ? res.first : null;
   }
 
-  Future<List<Map<String, dynamic>>> queryAllVacinas() async {
+  // 2. Atualiza o valor da venda se ela já existir
+  Future<int> updateValorVenda(int animalId, double novoValor) async {
     Database db = await instance.database;
-    return await db.query('vacinas', orderBy: "data_aplicacao DESC");
+    return await db.update('financas', 
+      {'valor': novoValor}, 
+      where: 'animal_id = ?', 
+      whereArgs: [animalId]
+    );
   }
 
-  Future<int> deleteVacina(int id) async {
+  // 3. Remove a venda se o boi deixar de ser vendido (ex: voltou a ser ativo)
+  Future<int> deleteVendaPorAnimal(int animalId) async {
     Database db = await instance.database;
-    return await db.delete('vacinas', where: 'id = ?', whereArgs: [id]);
+    return await db.delete('financas', where: 'animal_id = ?', whereArgs: [animalId]);
+  }
+
+  // --- MANEJO ---
+  Future<int> insertManejo(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('manejo', row);
+  }
+
+  Future<List<Map<String, dynamic>>> queryManejoPorAnimal(int animalId) async {
+    Database db = await instance.database;
+    return await db.query('manejo', where: 'animal_id = ?', whereArgs: [animalId], orderBy: "data DESC");
+  }
+
+  Future<List<Map<String, dynamic>>> queryUltimosManejos() async {
+    Database db = await instance.database;
+    return await db.rawQuery('SELECT manejo.*, animais.brinco FROM manejo INNER JOIN animais ON manejo.animal_id = animais.id ORDER BY manejo.data DESC LIMIT 5');
+  }
+
+  Future<List<Map<String, dynamic>>> queryTodosManejos() async {
+    Database db = await instance.database;
+    return await db.query('manejo', orderBy: "data DESC");
+  }
+
+  Future<int> deleteManejo(int id) async {
+    Database db = await instance.database;
+    return await db.delete('manejo', where: 'id = ?', whereArgs: [id]);
   }
 }

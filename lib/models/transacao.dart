@@ -1,9 +1,10 @@
 class Transacao {
   final int? id;
-  final String tipo; // "VENDA" ou "DESPESA"
+  final String tipo; // 'VENDA' ou 'DESPESA'
   final String descricao;
   final double valor;
   final String data;
+  final int? animalId; // <--- NOVO CAMPO: Vínculo com o animal
 
   Transacao({
     this.id,
@@ -11,9 +12,9 @@ class Transacao {
     required this.descricao,
     required this.valor,
     required this.data,
+    this.animalId,
   });
 
-  // Salvar no Banco
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -21,10 +22,10 @@ class Transacao {
       'descricao': descricao,
       'valor': valor,
       'data': data,
+      'animal_id': animalId, // Salva no banco
     };
   }
 
-  // Ler do Banco
   factory Transacao.fromMap(Map<String, dynamic> map) {
     return Transacao(
       id: map['id'],
@@ -32,6 +33,7 @@ class Transacao {
       descricao: map['descricao'],
       valor: map['valor'],
       data: map['data'],
+      animalId: map['animal_id'], // Lê do banco
     );
   }
 }

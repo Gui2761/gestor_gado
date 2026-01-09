@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; 
 import '../database/database_helper.dart';
 import '../models/animal.dart';
+import '../models/manejo.dart';
 import '../services/pdf_service.dart';
 import 'cadastro_animal_screen.dart';
 import 'financas_screen.dart';
-import 'vacinas_screen.dart';
 import 'dashboard_screen.dart';
 import 'backup_screen.dart';
 
@@ -19,11 +20,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Animal> _todosAnimais = [];
   List<Animal> _animaisFiltrados = [];
+  Map<int, Manejo> _ultimoManejoPorAnimal = {}; 
+  
   bool _isLoading = true;
-
   String _filtroBusca = "";
   String _filtroStatus = "Todos"; 
-
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -32,12 +33,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _atualizarLista();
   }
 
+  // Essa função recarrega tudo do banco
   void _atualizarLista() async {
     setState(() => _isLoading = true);
-    final data = await DatabaseHelper.instance.queryAllAnimais();
     
+    // 1. Busca todos os animais
+    final dataAnimais = await DatabaseHelper.instance.queryAllAnimais();
+    
+    // 2. Busca histórico completo (ordenado do mais novo para o mais velho)
+    final todosManejos = await DatabaseHelper.instance.queryTodosManejos();
+    
+    // 3. Pega apenas o PRIMEIRO de cada animal (que é o mais recente)
+    Map<int, Manejo> mapTemp = {};
+    for (var m in todosManejos) {
+       final manejo = Manejo.fromMap(m);
+       // Se ainda não tenho registro pra esse boi, adiciono (esse é o mais novo)
+       if (!mapTemp.containsKey(manejo.animalId)) {
+         mapTemp[manejo.animalId] = manejo;
+       }
+    }
+
     setState(() {
-      _todosAnimais = data.map((e) => Animal.fromMap(e)).toList();
+      _todosAnimais = dataAnimais.map((e) => Animal.fromMap(e)).toList();
+      _ultimoManejoPorAnimal = mapTemp;
       _isLoading = false;
       _aplicarFiltros(); 
     });
@@ -50,15 +68,12 @@ class _HomeScreenState extends State<HomeScreen> {
         final matchTexto = 
           boi.brinco.toLowerCase().contains(termo) ||
           (boi.nome != null && boi.nome!.toLowerCase().contains(termo));
-
         final matchStatus = _filtroStatus == "Todos" ? true : boi.status == _filtroStatus;
-
         return matchTexto && matchStatus;
       }).toList();
     });
   }
 
-  // --- MENU DE ESCOLHA DO RELATÓRIO (GTA ou GERAL) ---
   void _mostrarOpcoesPDF() {
     if (_animaisFiltrados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lista vazia!")));
@@ -67,49 +82,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Escolha o Relatório", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            
-            // OPÇÃO 1: GTA
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.description, color: Colors.blue),
-              ),
-              title: const Text("Documento para GTA", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text("Contagem oficial por idade e sexo"),
-              onTap: () {
-                Navigator.pop(ctx);
-                PdfService().gerarRelatorioGTA(_animaisFiltrados);
-              },
-            ),
-            
-            const SizedBox(height: 10),
-
-            // OPÇÃO 2: GERAL
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.list_alt, color: Colors.green),
-              ),
-              title: const Text("Relatório Geral"),
-              subtitle: const Text("Lista simples do rebanho"),
-              onTap: () {
-                Navigator.pop(ctx);
-                PdfService().gerarRelatorioGeral(_animaisFiltrados);
-              },
-            ),
-          ],
-        ),
+      builder: (ctx) => Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.description, color: Colors.blue),
+            title: const Text("Documento para GTA"),
+            subtitle: const Text("Contagem oficial por idade e sexo"),
+            onTap: () { Navigator.pop(ctx); PdfService().gerarRelatorioGTA(_animaisFiltrados); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.list_alt, color: Colors.green),
+            title: const Text("Relatório Geral"),
+            subtitle: const Text("Lista simples do rebanho"),
+            onTap: () { Navigator.pop(ctx); PdfService().gerarRelatorioGeral(_animaisFiltrados); },
+          ),
+        ],
       ),
     );
   }
@@ -127,31 +114,20 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DashboardScreen())),
           ),
           IconButton(
-            icon: const Icon(Icons.medical_services),
-            tooltip: "Vacinas",
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const VacinasScreen())),
-          ),
-          IconButton(
             icon: const Icon(Icons.attach_money),
             tooltip: "Financeiro",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FinancasScreen())),
           ),
-          // BOTÃO PDF AGORA ABRE O MENU
           IconButton(
             onPressed: _mostrarOpcoesPDF, 
             icon: const Icon(Icons.picture_as_pdf),
             tooltip: "Relatórios",
           ),
-          
-          // MENU DE OPÇÕES (BACKUP)
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'backup') {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => const BackupScreen()),
-                );
-                if (result == true) _atualizarLista();
+                await Navigator.push(context, MaterialPageRoute(builder: (c) => const BackupScreen()));
+                _atualizarLista();
               }
             },
             itemBuilder: (BuildContext context) {
@@ -176,17 +152,15 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.add),
         tooltip: "Novo Animal",
         onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CadastroAnimalScreen()),
-          );
-          if (result == true) _atualizarLista();
+          // Navega e espera voltar, depois ATUALIZA
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => const CadastroAnimalScreen()));
+          _atualizarLista(); 
         },
       ),
 
       body: Column(
         children: [
-          // ÁREA DE BUSCA E FILTROS
+          // BARRA DE BUSCA
           Container(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
             color: Theme.of(context).primaryColor.withOpacity(0.05),
@@ -198,17 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     hintText: "Buscar por Brinco ou Nome...",
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty 
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _filtroBusca = "";
-                              _aplicarFiltros();
-                            });
-                          },
-                        ) 
-                      : null,
+                      ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _searchController.clear(); setState(() { _filtroBusca = ""; _aplicarFiltros(); }); }) : null,
                     filled: true,
                     fillColor: Theme.of(context).cardColor,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
@@ -263,6 +227,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.all(8),
                     itemBuilder: (context, index) {
                       final animal = _animaisFiltrados[index];
+                      // Pega o último tratamento deste boi
+                      final ultimoManejo = _ultimoManejoPorAnimal[animal.id];
                       
                       return Card(
                         elevation: 2,
@@ -271,13 +237,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CadastroAnimalScreen(animalParaEditar: animal)
-                              ),
-                            );
-                            if (result == true) _atualizarLista();
+                            // AQUI É O SEGREDO: 'await' espera você voltar da tela de edição
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => CadastroAnimalScreen(animalParaEditar: animal)));
+                            // Quando voltar, roda isso para atualizar a lista e remover remédios excluídos
+                            _atualizarLista(); 
                           },
                           leading: CircleAvatar(
                             radius: 28,
@@ -304,49 +267,48 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               const SizedBox(height: 4),
                               Text("${animal.raca} • ${animal.sexo}"),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Row(
                                 children: [
+                                  // Status
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: _getCorStatus(animal.status),
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       animal.status,
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text("${animal.peso} kg", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  const SizedBox(width: 8),
+                                  Text("${animal.peso} kg", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ],
-                              )
+                              ),
+
+                              // --- LINHA VERDE DO ÚLTIMO REMÉDIO ---
+                              // Se existir um remédio, mostra. Se foi excluído, 'ultimoManejo' será null e isso some.
+                              if (ultimoManejo != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.health_and_safety, size: 14, color: Colors.green[700]),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          "${ultimoManejo.categoria}: ${ultimoManejo.nome} (${DateFormat('dd/MM').format(DateTime.parse(ultimoManejo.data))})",
+                                          style: TextStyle(fontSize: 12, color: Colors.green[800], fontWeight: FontWeight.w500),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () {
-                              showDialog(
-                                context: context, 
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text("Excluir?"),
-                                  content: const Text("Essa ação não pode ser desfeita."),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancelar")),
-                                    TextButton(
-                                      onPressed: () async {
-                                        await DatabaseHelper.instance.deleteAnimal(animal.id!);
-                                        Navigator.pop(ctx);
-                                        _atualizarLista();
-                                      }, 
-                                      child: const Text("Excluir")
-                                    ),
-                                  ],
-                                )
-                              );
-                            },
-                          ),
+                          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                         ),
                       );
                     },

@@ -1,14 +1,15 @@
+import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../models/animal.dart';
+import '../models/manejo.dart';
 
 class PdfService {
 
-  // --- 1. RELATÓRIO GERAL (Simples) ---
+  // --- 1. RELATÓRIO GERAL ---
   Future<void> gerarRelatorioGeral(List<Animal> animais) async {
     final pdf = pw.Document();
-    // Ordena por nome para ficar organizado
     animais.sort((a, b) => (a.nome ?? '').compareTo(b.nome ?? ''));
 
     pdf.addPage(
@@ -27,11 +28,9 @@ class PdfService {
     await _abrirPDF(pdf, "relatorio_geral");
   }
 
-  // --- 2. RELATÓRIO ESPECIAL PARA GTA (Novo) ---
+  // --- 2. RELATÓRIO GTA ---
   Future<void> gerarRelatorioGTA(List<Animal> animais) async {
     final pdf = pw.Document();
-
-    // A MÁGICA: Calcula os totais por faixa etária automaticamente
     final dadosGTA = _calcularFaixasEtarias(animais);
 
     pdf.addPage(
@@ -39,23 +38,13 @@ class PdfService {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(20),
         build: (context) => [
-          _buildHeader("Relatório Auxiliar para GTA", cor: PdfColors.blue800),
-          pw.SizedBox(height: 10),
-          pw.Text(
-            "Utilize os dados abaixo para preencher o formulário de trânsito animal (GTA).",
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)
-          ),
+          _buildHeader("Auxiliar para GTA", cor: PdfColors.blue800),
           pw.SizedBox(height: 20),
-          
-          // TABELA 1: O RESUMO QUE O GOVERNO PEDE
-          pw.Text("1. Contagem por Faixa Etária e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          pw.Text("1. Contagem por Faixa Etária e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 5),
           _buildTabelaFaixaEtaria(dadosGTA),
-          
-          pw.SizedBox(height: 30),
-
-          // TABELA 2: LISTA DETALHADA DOS ANIMAIS (Para conferência)
-          pw.Text("2. Animais Desta Carga (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          pw.SizedBox(height: 20),
+          pw.Text("2. Animais (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 5),
           _buildTabelaDetalhadaGTA(animais),
         ],
@@ -64,48 +53,142 @@ class PdfService {
     await _abrirPDF(pdf, "auxiliar_gta");
   }
 
-  // --- CÁLCULOS MATEMÁTICOS PARA GTA ---
+  // --- 3. FICHA INDIVIDUAL (COM REMÉDIOS) ---
+  Future<void> gerarFichaAnimal(Animal animal, List<Manejo> historico) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(30),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              _buildHeader("Ficha Individual do Animal", cor: PdfColors.teal800),
+              pw.SizedBox(height: 20),
+              
+              // DADOS DO ANIMAL
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey400),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5))
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    // Se tivesse foto, seria complexo por aqui, vamos focar nos dados
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          _itemFicha("Brinco:", animal.brinco, destaque: true),
+                          _itemFicha("Nome:", animal.nome ?? '-'),
+                          _itemFicha("Raça:", animal.raca),
+                          _itemFicha("Sexo:", animal.sexo),
+                        ]
+                      )
+                    ),
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          _itemFicha("Peso:", "${animal.peso} kg"),
+                          _itemFicha("Status:", animal.status),
+                          _itemFicha("Nascimento:", _formatarData(animal.dataNascimento)),
+                        ]
+                      )
+                    ),
+                  ]
+                )
+              ),
+
+              pw.SizedBox(height: 30),
+              pw.Text("Histórico Sanitário (Vacinas e Medicamentos)", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.teal800)),
+              pw.Divider(color: PdfColors.teal),
+              pw.SizedBox(height: 10),
+
+              // TABELA DE REMÉDIOS
+              if (historico.isEmpty)
+                pw.Text("Nenhum registro encontrado.", style: const pw.TextStyle(color: PdfColors.grey))
+              else
+                pw.TableHelper.fromTextArray(
+                  headers: ['Data', 'Tipo', 'Produto', 'Observação'],
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.teal600),
+                  rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
+                  cellPadding: const pw.EdgeInsets.all(8),
+                  data: historico.map((m) {
+                    return [
+                      _formatarData(m.data),
+                      m.categoria,
+                      m.nome,
+                      m.observacao ?? ''
+                    ];
+                  }).toList(),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+
+    await _abrirPDF(pdf, "ficha_animal_${animal.brinco}");
+  }
+
+  pw.Widget _itemFicha(String label, String value, {bool destaque = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 5),
+      child: pw.RichText(
+        text: pw.TextSpan(
+          children: [
+            pw.TextSpan(text: "$label ", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: destaque ? 18 : 12)),
+            pw.TextSpan(text: value, style: pw.TextStyle(fontSize: destaque ? 18 : 12)),
+          ]
+        )
+      )
+    );
+  }
+
+  String _formatarData(String dataIso) {
+    try {
+      final d = DateTime.parse(dataIso);
+      return "${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year}";
+    } catch (e) {
+      return dataIso;
+    }
+  }
+
+  // --- MÉTODOS AUXILIARES ---
   Map<String, Map<String, int>> _calcularFaixasEtarias(List<Animal> animais) {
-    // Inicializa o mapa com as faixas padrão da GTA zeradas
-    final map = {
+    // (Código igual ao anterior)
+     final map = {
       '0 a 12 meses': {'M': 0, 'F': 0},
       '13 a 24 meses': {'M': 0, 'F': 0},
       '25 a 36 meses': {'M': 0, 'F': 0},
       'Acima de 36 meses': {'M': 0, 'F': 0},
     };
-
     final hoje = DateTime.now();
-
     for (var boi in animais) {
-      // 1. Descobre a idade em meses
       int meses = 0;
       try {
         if (boi.dataNascimento.isNotEmpty) {
            final nasc = DateTime.parse(boi.dataNascimento);
            meses = (hoje.difference(nasc).inDays / 30).floor();
-        } else {
-           meses = 37; // Sem data = Adulto (segurança)
-        }
-      } catch (e) {
-        meses = 37; 
-      }
+        } else { meses = 37; }
+      } catch (_) { meses = 37; }
 
-      // 2. Define a Faixa
       String faixa = 'Acima de 36 meses';
       if (meses <= 12) faixa = '0 a 12 meses';
       else if (meses <= 24) faixa = '13 a 24 meses';
       else if (meses <= 36) faixa = '25 a 36 meses';
 
-      // 3. Define o Sexo (M ou F)
       String sexo = (boi.sexo.toUpperCase().startsWith('M')) ? 'M' : 'F';
-
-      // 4. Soma +1 na categoria certa
       map[faixa]![sexo] = (map[faixa]![sexo] ?? 0) + 1;
     }
     return map;
   }
-
-  // --- COMPONENTES VISUAIS (TABELAS) ---
 
   pw.Widget _buildHeader(String titulo, {PdfColor cor = PdfColors.green700}) {
     return pw.Container(
@@ -116,56 +199,9 @@ class PdfService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(titulo, style: pw.TextStyle(color: PdfColors.white, fontSize: 18, fontWeight: pw.FontWeight.bold)),
-          pw.Text(
-            "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
-            style: const pw.TextStyle(color: PdfColors.white)
-          ),
+          pw.Text("${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}", style: const pw.TextStyle(color: PdfColors.white)),
         ],
       ),
-    );
-  }
-
-  pw.Widget _buildTabelaFaixaEtaria(Map<String, Map<String, int>> dados) {
-    return pw.TableHelper.fromTextArray(
-      headers: ['Faixa Etária (Idade)', 'Machos', 'Fêmeas', 'Total'],
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey700),
-      cellAlignment: pw.Alignment.center,
-      data: dados.entries.map((entry) {
-        final machos = entry.value['M']!;
-        final femeas = entry.value['F']!;
-        return [
-          entry.key,
-          machos,
-          femeas,
-          (machos + femeas),
-        ];
-      }).toList(),
-    );
-  }
-
-  pw.Widget _buildTabelaDetalhadaGTA(List<Animal> animais) {
-    return pw.TableHelper.fromTextArray(
-      headers: ['Brinco', 'Nome', 'Sexo', 'Raça', 'Idade Est.'],
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-      cellStyle: const pw.TextStyle(fontSize: 10),
-      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-      data: animais.map((a) {
-        int meses = 0;
-        try {
-           if (a.dataNascimento.isNotEmpty) {
-             meses = (DateTime.now().difference(DateTime.parse(a.dataNascimento)).inDays / 30).floor();
-           }
-        } catch (_) {}
-        
-        return [
-          a.brinco,
-          a.nome ?? '-',
-          a.sexo,
-          a.raca,
-          "$meses meses",
-        ];
-      }).toList(),
     );
   }
 
@@ -174,15 +210,23 @@ class PdfService {
       border: null,
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
       headers: <String>['Brinco', 'Nome/Raça', 'Sexo', 'Peso', 'Status'],
-      data: animais.map((animal) {
-        return [
-          animal.brinco,
-          "${animal.nome ?? ''}\n${animal.raca}",
-          animal.sexo,
-          "${animal.peso.toStringAsFixed(1)} kg",
-          animal.status,
-        ];
-      }).toList(),
+      data: animais.map((animal) => [animal.brinco, "${animal.nome ?? ''}\n${animal.raca}", animal.sexo, "${animal.peso} kg", animal.status]).toList(),
+    );
+  }
+
+  pw.Widget _buildTabelaFaixaEtaria(Map<String, Map<String, int>> dados) {
+    return pw.TableHelper.fromTextArray(
+      headers: ['Faixa Etária', 'Machos', 'Fêmeas', 'Total'],
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.grey700),
+      data: dados.entries.map((entry) => [entry.key, entry.value['M']!, entry.value['F']!, (entry.value['M']! + entry.value['F']!)]).toList(),
+    );
+  }
+
+  pw.Widget _buildTabelaDetalhadaGTA(List<Animal> animais) {
+     return pw.TableHelper.fromTextArray(
+      headers: ['Brinco', 'Raça', 'Idade Est.'],
+      data: animais.map((a) => [a.brinco, a.raca, _formatarData(a.dataNascimento)]).toList(),
     );
   }
 
@@ -193,14 +237,12 @@ class PdfService {
       decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400))),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
-        children: [
-          pw.Text("Total: ${animais.length} animais | Peso Total: ${pesoTotal.toStringAsFixed(1)} kg", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-        ],
+        children: [pw.Text("Total: ${animais.length} animais | Peso: $pesoTotal kg", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))],
       ),
     );
   }
 
   Future<void> _abrirPDF(pw.Document pdf, String nomeArquivo) async {
-    await Printing.sharePdf(bytes: await pdf.save(), filename: '${nomeArquivo}_${DateTime.now().day}.pdf');
+    await Printing.sharePdf(bytes: await pdf.save(), filename: '$nomeArquivo.pdf');
   }
 }

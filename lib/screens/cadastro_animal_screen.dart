@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart'; // Para formatar a data
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../models/transacao.dart';
+import 'historico_saude_screen.dart';
 
 class CadastroAnimalScreen extends StatefulWidget {
   final Animal? animalParaEditar;
@@ -20,18 +21,17 @@ class CadastroAnimalScreen extends StatefulWidget {
 class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controladores
   late TextEditingController _brincoController;
   late TextEditingController _nomeController;
   late TextEditingController _racaController;
   late TextEditingController _pesoController;
-  final _valorVendaController = TextEditingController(); // Controlador da Venda
+  final _valorVendaController = TextEditingController();
+  final _dataNascimentoController = TextEditingController();
 
-  // Variáveis de Estado
   String _statusSelecionado = 'Ativo';
   String _sexoSelecionado = 'Macho';
   File? _imagemSelecionada;
-  DateTime _dataNascimento = DateTime.now(); // Variável da Data (GTA)
+  DateTime _dataNascimento = DateTime.now();
 
   @override
   void initState() {
@@ -40,6 +40,8 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
     _nomeController = TextEditingController();
     _racaController = TextEditingController();
     _pesoController = TextEditingController();
+    
+    _dataNascimentoController.text = DateFormat('dd/MM/yyyy').format(_dataNascimento);
 
     if (widget.animalParaEditar != null) {
       final a = widget.animalParaEditar!;
@@ -54,12 +56,25 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
         _imagemSelecionada = File(a.fotoPath!);
       }
 
-      // Carrega a Data de Nascimento salva
       try {
         if (a.dataNascimento.isNotEmpty) {
           _dataNascimento = DateTime.parse(a.dataNascimento);
+          _dataNascimentoController.text = DateFormat('dd/MM/yyyy').format(_dataNascimento);
         }
       } catch (_) {}
+
+      if (a.status == 'Vendido') {
+        _carregarValorVenda(a.id!);
+      }
+    }
+  }
+
+  Future<void> _carregarValorVenda(int animalId) async {
+    final venda = await DatabaseHelper.instance.getVendaPorAnimal(animalId);
+    if (venda != null) {
+      setState(() {
+        _valorVendaController.text = venda['valor'].toString();
+      });
     }
   }
 
@@ -70,10 +85,10 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
     _racaController.dispose();
     _pesoController.dispose();
     _valorVendaController.dispose();
+    _dataNascimentoController.dispose();
     super.dispose();
   }
 
-  // --- FUNÇÃO DE FOTO ---
   void _mostrarOpcoesFoto() {
     showModalBottomSheet(
       context: context,
@@ -84,18 +99,12 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
               ListTile(
                 leading: const Icon(Icons.camera_alt),
                 title: const Text('Tirar Foto (Câmera)'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pegarImagem(ImageSource.camera);
-                },
+                onTap: () { Navigator.pop(context); _pegarImagem(ImageSource.camera); },
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library),
                 title: const Text('Escolher da Galeria'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pegarImagem(ImageSource.gallery);
-                },
+                onTap: () { Navigator.pop(context); _pegarImagem(ImageSource.gallery); },
               ),
             ],
           ),
@@ -113,16 +122,12 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
       final String localPath = path.join(directory.path, fileName);
       final File imageFile = File(pickedFile.path);
-      
       final File savedImage = await imageFile.copy(localPath);
-
-      setState(() {
-        _imagemSelecionada = savedImage;
-      });
+      setState(() { _imagemSelecionada = savedImage; });
     }
   }
 
-  // --- FUNÇÃO DE DATA (GTA) ---
+  // --- CALENDÁRIO PRETO ---
   Future<void> _selecionarData() async {
     final DateTime? dataEscolhida = await showDatePicker(
       context: context,
@@ -130,24 +135,36 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       locale: const Locale('pt', 'BR'),
+      builder: (context, child) {
+        // TEMA ESCURO FORÇADO
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: Colors.green, // Cabeçalho Verde
+              onPrimary: Colors.white,
+              surface: Colors.grey[900]!, // Fundo Preto/Cinza
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: Colors.grey[900],
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (dataEscolhida != null && dataEscolhida != _dataNascimento) {
+    if (dataEscolhida != null) {
       setState(() {
         _dataNascimento = dataEscolhida;
+        _dataNascimentoController.text = DateFormat('dd/MM/yyyy').format(dataEscolhida);
       });
     }
   }
 
-  // --- SALVAR TUDO ---
   Future<void> _salvarAnimal() async {
     if (_formKey.currentState!.validate()) {
       try {
-        // Validação da Venda
         if (_statusSelecionado == 'Vendido' && _valorVendaController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Informe o VALOR DA VENDA!"), backgroundColor: Colors.orange),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Informe o VALOR DA VENDA!"), backgroundColor: Colors.orange));
           return;
         }
 
@@ -159,34 +176,42 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
           sexo: _sexoSelecionado,
           peso: double.parse(_pesoController.text.replaceAll(',', '.')),
           status: _statusSelecionado,
-          dataNascimento: _dataNascimento.toString(), // Salva a data do calendário
+          dataNascimento: _dataNascimento.toString(),
           fotoPath: _imagemSelecionada?.path,
         );
 
+        int animalId;
         if (widget.animalParaEditar == null) {
-          await DatabaseHelper.instance.insertAnimal(animalEditado.toMap());
+          animalId = await DatabaseHelper.instance.insertAnimal(animalEditado.toMap());
         } else {
+          animalId = widget.animalParaEditar!.id!;
           await DatabaseHelper.instance.updateAnimal(animalEditado.toMap());
         }
 
-        // --- LÓGICA DE VENDA (FINANCEIRO) ---
         bool eraVendidoAntes = widget.animalParaEditar?.status == 'Vendido';
-        
-        if (_statusSelecionado == 'Vendido' && !eraVendidoAntes) {
+        bool agoraEstaVendido = _statusSelecionado == 'Vendido';
+
+        if (agoraEstaVendido) {
           final valorVenda = double.parse(_valorVendaController.text.replaceAll(',', '.'));
           
-          final novaVenda = Transacao(
-            tipo: 'VENDA',
-            descricao: "Venda Boi ${_brincoController.text} (${_racaController.text})",
-            valor: valorVenda,
-            data: DateTime.now().toString(),
-          );
-
-          await DatabaseHelper.instance.insertTransacao(novaVenda.toMap());
+          if (!eraVendidoAntes) {
+            final novaVenda = Transacao(
+              tipo: 'VENDA',
+              descricao: "Venda Boi ${_brincoController.text} (${_racaController.text})",
+              valor: valorVenda,
+              data: DateTime.now().toString(),
+              animalId: animalId,
+            );
+            await DatabaseHelper.instance.insertTransacao(novaVenda.toMap());
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Venda registrada!"), backgroundColor: Colors.green));
           
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Venda registrada no financeiro!"), backgroundColor: Colors.green));
+          } else {
+            await DatabaseHelper.instance.updateValorVenda(animalId, valorVenda);
+            if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Valor atualizado!"), backgroundColor: Colors.blue));
           }
+        } 
+        else if (eraVendidoAntes && !agoraEstaVendido) {
+          await DatabaseHelper.instance.deleteVendaPorAnimal(animalId);
         }
 
         if (mounted) Navigator.pop(context, true);
@@ -203,42 +228,37 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
       appBar: AppBar(title: Text(widget.animalParaEditar == null ? "Novo Animal" : "Editar Animal")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              // FOTO
               GestureDetector(
                 onTap: _mostrarOpcoesFoto,
                 child: Container(
                   height: 150, width: 150,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey),
-                    image: (_imagemSelecionada != null && _imagemSelecionada!.existsSync())
-                      ? DecorationImage(image: FileImage(_imagemSelecionada!), fit: BoxFit.cover)
-                      : null
+                    color: Colors.grey[300], borderRadius: BorderRadius.circular(75),
+                    image: (_imagemSelecionada != null && _imagemSelecionada!.existsSync()) ? DecorationImage(image: FileImage(_imagemSelecionada!), fit: BoxFit.cover) : null
                   ),
-                  child: _imagemSelecionada == null ? const Icon(Icons.add_a_photo, size: 50, color: Colors.grey) : null,
+                  child: _imagemSelecionada == null ? const Icon(Icons.add_a_photo, size: 40, color: Colors.grey) : null,
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text("Toque para foto", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 20),
-
-              // CAMPOS PRINCIPAIS
+              
               TextFormField(
                 controller: _brincoController,
-                decoration: const InputDecoration(labelText: "Nº Brinco *", border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: "Nº Brinco *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.tag)),
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next, 
                 validator: (val) => val!.isEmpty ? "Obrigatório" : null,
               ),
               const SizedBox(height: 15),
 
               TextFormField(
                 controller: _nomeController,
-                decoration: const InputDecoration(labelText: "Nome/Apelido", border: OutlineInputBorder()),
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: "Nome/Apelido", border: OutlineInputBorder(), prefixIcon: Icon(Icons.edit)),
               ),
               const SizedBox(height: 15),
 
@@ -247,6 +267,7 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _racaController,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: "Raça *", border: OutlineInputBorder()),
                       validator: (val) => val!.isEmpty ? "Obrigatório" : null,
                     ),
@@ -255,6 +276,7 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _pesoController,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: "Peso (kg) *", border: OutlineInputBorder()),
                       keyboardType: TextInputType.number,
                       validator: (val) => val!.isEmpty ? "Obrigatório" : null,
@@ -264,24 +286,19 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
               ),
               const SizedBox(height: 15),
 
-              // DATA DE NASCIMENTO (NOVO PARA GTA)
-              InkWell(
+              // CAMPO DATA BONITO
+              TextFormField(
+                controller: _dataNascimentoController,
+                readOnly: true, 
                 onTap: _selecionarData,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: "Nascimento (Para GTA)",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.calendar_today, color: Colors.green),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(DateFormat('dd/MM/yyyy').format(_dataNascimento), style: const TextStyle(fontSize: 16)),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
+                decoration: const InputDecoration(
+                  labelText: "Nascimento (Para GTA)",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.calendar_today, color: Colors.green),
+                  suffixIcon: Icon(Icons.arrow_drop_down),
                 ),
               ),
+              
               const SizedBox(height: 15),
 
               Row(
@@ -306,27 +323,44 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                 ],
               ),
 
-              // CAMPO FINANCEIRO (Venda)
               if (_statusSelecionado == 'Vendido') ...[
                 const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(color: Colors.green[50], border: Border.all(color: Colors.green), borderRadius: BorderRadius.circular(10)),
-                  child: Column(
-                    children: [
-                      const Row(children: [Icon(Icons.attach_money, color: Colors.green), SizedBox(width: 10), Text("Valor da Venda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))]),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: _valorVendaController,
-                        decoration: const InputDecoration(labelText: "Valor (R\$)", border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ],
+                TextFormField(
+                  controller: _valorVendaController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 18),
+                  decoration: InputDecoration(
+                    labelText: "Valor da Venda (R\$)",
+                    prefixIcon: const Icon(Icons.monetization_on, color: Colors.green),
+                    filled: true,
+                    fillColor: Colors.green.withOpacity(0.1),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.green, width: 2)),
                   ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 5, left: 10),
+                  child: Text("Alterando este valor, o Financeiro atualiza automaticamente.", style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ),
               ],
 
               const SizedBox(height: 30),
+
+              if (widget.animalParaEditar != null) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => HistoricoSaudeScreen(animal: widget.animalParaEditar!)));
+                    },
+                    icon: const Icon(Icons.health_and_safety, color: Colors.teal),
+                    label: const Text("ABRIR PRONTUÁRIO VETERINÁRIO", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 15),
+              ],
+
               SizedBox(
                 width: double.infinity, height: 50,
                 child: ElevatedButton.icon(
@@ -336,7 +370,8 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                 ),
               ),
-              const SizedBox(height: 30),
+              
+              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 80),
             ],
           ),
         ),
