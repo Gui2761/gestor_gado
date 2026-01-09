@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // Para formatar a data
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../database/database_helper.dart';
@@ -19,17 +20,18 @@ class CadastroAnimalScreen extends StatefulWidget {
 class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
   final _formKey = GlobalKey<FormState>();
   
+  // Controladores
   late TextEditingController _brincoController;
   late TextEditingController _nomeController;
   late TextEditingController _racaController;
   late TextEditingController _pesoController;
-  
-  // Controlador novo para o valor da venda
-  final _valorVendaController = TextEditingController();
+  final _valorVendaController = TextEditingController(); // Controlador da Venda
 
+  // Variáveis de Estado
   String _statusSelecionado = 'Ativo';
   String _sexoSelecionado = 'Macho';
   File? _imagemSelecionada;
+  DateTime _dataNascimento = DateTime.now(); // Variável da Data (GTA)
 
   @override
   void initState() {
@@ -47,9 +49,17 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
       _pesoController.text = a.peso.toString();
       _statusSelecionado = a.status;
       _sexoSelecionado = a.sexo;
+      
       if (a.fotoPath != null) {
         _imagemSelecionada = File(a.fotoPath!);
       }
+
+      // Carrega a Data de Nascimento salva
+      try {
+        if (a.dataNascimento.isNotEmpty) {
+          _dataNascimento = DateTime.parse(a.dataNascimento);
+        }
+      } catch (_) {}
     }
   }
 
@@ -63,6 +73,7 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
     super.dispose();
   }
 
+  // --- FUNÇÃO DE FOTO ---
   void _mostrarOpcoesFoto() {
     showModalBottomSheet(
       context: context,
@@ -103,10 +114,6 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
       final String localPath = path.join(directory.path, fileName);
       final File imageFile = File(pickedFile.path);
       
-      if (_imagemSelecionada != null && await _imagemSelecionada!.exists()) {
-         await _imagemSelecionada!.delete();
-      }
-
       final File savedImage = await imageFile.copy(localPath);
 
       setState(() {
@@ -115,21 +122,35 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
     }
   }
 
+  // --- FUNÇÃO DE DATA (GTA) ---
+  Future<void> _selecionarData() async {
+    final DateTime? dataEscolhida = await showDatePicker(
+      context: context,
+      initialDate: _dataNascimento,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
+    );
+
+    if (dataEscolhida != null && dataEscolhida != _dataNascimento) {
+      setState(() {
+        _dataNascimento = dataEscolhida;
+      });
+    }
+  }
+
+  // --- SALVAR TUDO ---
   Future<void> _salvarAnimal() async {
     if (_formKey.currentState!.validate()) {
       try {
-        // 1. Validação de Venda: Se mudou para vendido, tem que ter valor
+        // Validação da Venda
         if (_statusSelecionado == 'Vendido' && _valorVendaController.text.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Informe o VALOR DA VENDA para salvar!"),
-              backgroundColor: Colors.orange,
-            ),
+            const SnackBar(content: Text("Informe o VALOR DA VENDA!"), backgroundColor: Colors.orange),
           );
-          return; // Para tudo e não salva
+          return;
         }
 
-        // 2. Prepara o Objeto Animal
         final animalEditado = Animal(
           id: widget.animalParaEditar?.id,
           brinco: _brincoController.text,
@@ -138,22 +159,19 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
           sexo: _sexoSelecionado,
           peso: double.parse(_pesoController.text.replaceAll(',', '.')),
           status: _statusSelecionado,
-          dataNascimento: widget.animalParaEditar?.dataNascimento ?? DateTime.now().toIso8601String(),
+          dataNascimento: _dataNascimento.toString(), // Salva a data do calendário
           fotoPath: _imagemSelecionada?.path,
         );
 
-        // 3. Salva ou Atualiza o Animal no Banco
         if (widget.animalParaEditar == null) {
           await DatabaseHelper.instance.insertAnimal(animalEditado.toMap());
         } else {
           await DatabaseHelper.instance.updateAnimal(animalEditado.toMap());
         }
 
-        // 4. --- AUTOMAÇÃO FINANCEIRA ---
-        // Verifica se o animal já estava vendido antes para não duplicar o dinheiro
+        // --- LÓGICA DE VENDA (FINANCEIRO) ---
         bool eraVendidoAntes = widget.animalParaEditar?.status == 'Vendido';
         
-        // Só gera financeiro se AGORA é vendido E ANTES não era
         if (_statusSelecionado == 'Vendido' && !eraVendidoAntes) {
           final valorVenda = double.parse(_valorVendaController.text.replaceAll(',', '.'));
           
@@ -167,52 +185,22 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
           await DatabaseHelper.instance.insertTransacao(novaVenda.toMap());
           
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Sucesso! Venda de R\$ $valorVenda registrada."),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } 
-        // Se já estava vendido, avisa que atualizou mas não gerou dinheiro novo
-        else if (_statusSelecionado == 'Vendido' && eraVendidoAntes) {
-          if (mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Dados atualizados (Financeiro mantido)."),
-                backgroundColor: Colors.blue,
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Venda registrada no financeiro!"), backgroundColor: Colors.green));
           }
         }
 
-        if (mounted) {
-          Navigator.pop(context, true); // Volta para a tela anterior
-        }
+        if (mounted) Navigator.pop(context, true);
 
       } catch (e) {
-        // Se der erro (ex: tabela faltando), mostra na tela
-        print("Erro ao salvar: $e");
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Erro ao salvar: $e"),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final tituloAppbar = widget.animalParaEditar == null ? "Novo Animal" : "Editar Animal";
-
     return Scaffold(
-      appBar: AppBar(title: Text(tituloAppbar)),
+      appBar: AppBar(title: Text(widget.animalParaEditar == null ? "Novo Animal" : "Editar Animal")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -232,16 +220,14 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                       ? DecorationImage(image: FileImage(_imagemSelecionada!), fit: BoxFit.cover)
                       : null
                   ),
-                  child: _imagemSelecionada == null 
-                      ? const Icon(Icons.add_a_photo, size: 50, color: Colors.grey)
-                      : null,
+                  child: _imagemSelecionada == null ? const Icon(Icons.add_a_photo, size: 50, color: Colors.grey) : null,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text("Toque na foto para alterar", style: TextStyle(color: Colors.grey)),
+              const Text("Toque para foto", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 20),
 
-              // CAMPOS
+              // CAMPOS PRINCIPAIS
               TextFormField(
                 controller: _brincoController,
                 decoration: const InputDecoration(labelText: "Nº Brinco *", border: OutlineInputBorder()),
@@ -278,6 +264,26 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
               ),
               const SizedBox(height: 15),
 
+              // DATA DE NASCIMENTO (NOVO PARA GTA)
+              InkWell(
+                onTap: _selecionarData,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: "Nascimento (Para GTA)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.calendar_today, color: Colors.green),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('dd/MM/yyyy').format(_dataNascimento), style: const TextStyle(fontSize: 16)),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+
               Row(
                 children: [
                   Expanded(
@@ -300,48 +306,25 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                 ],
               ),
 
-              // --- CAMPO ESPECIAL DE VENDA ---
-              // Só aparece se o status for "Vendido"
+              // CAMPO FINANCEIRO (Venda)
               if (_statusSelecionado == 'Vendido') ...[
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    border: Border.all(color: Colors.green),
-                    borderRadius: BorderRadius.circular(10)
-                  ),
+                  decoration: BoxDecoration(color: Colors.green[50], border: Border.all(color: Colors.green), borderRadius: BorderRadius.circular(10)),
                   child: Column(
                     children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.attach_money, color: Colors.green),
-                          SizedBox(width: 10),
-                          Text("Registro de Venda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                        ],
-                      ),
+                      const Row(children: [Icon(Icons.attach_money, color: Colors.green), SizedBox(width: 10), Text("Valor da Venda", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))]),
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _valorVendaController,
-                        decoration: const InputDecoration(
-                          // AQUI ESTAVA O ERRO, AGORA CORRIGIDO COM A BARRA INVERTIDA:
-                          labelText: "Valor da Venda (R\$)", 
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.white
-                        ),
+                        decoration: const InputDecoration(labelText: "Valor (R\$)", border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
                         keyboardType: TextInputType.number,
                       ),
-                      const SizedBox(height: 5),
-                      const Text(
-                        "Ao salvar, esse valor será adicionado automaticamente ao Financeiro.",
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      )
                     ],
                   ),
                 ),
               ],
-              // -------------------------------
 
               const SizedBox(height: 30),
               SizedBox(
@@ -353,7 +336,7 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                 ),
               ),
-               const SizedBox(height: 30),
+              const SizedBox(height: 30),
             ],
           ),
         ),

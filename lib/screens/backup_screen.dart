@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:archive/archive_io.dart'; 
 import '../database/database_helper.dart';
 
 class BackupScreen extends StatefulWidget {
@@ -16,57 +17,64 @@ class BackupScreen extends StatefulWidget {
 class _BackupScreenState extends State<BackupScreen> {
   bool _isLoading = false;
 
-  // --- FUNÇÃO DE EXPORTAR (SALVAR) ---
+  // --- FAZER BACKUP (SEMPRE GERA ZIP AGORA) ---
   Future<void> _fazerBackup() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Pega o caminho do banco original
       final dbPath = await DatabaseHelper.instance.getDbPath();
-      final File dbFile = File(dbPath);
-
-      // 2. Cria uma cópia temporária
-      final tempDir = await getTemporaryDirectory();
-      final dataHoje = DateTime.now().toString().split(' ')[0]; // Data YYYY-MM-DD
-      final backupPath = p.join(tempDir.path, "fazenda_backup_$dataHoje.db");
+      final appDir = await getApplicationDocumentsDirectory();
       
-      await dbFile.copy(backupPath);
+      var encoder = ZipFileEncoder();
+      final tempDir = await getTemporaryDirectory();
+      // Nome do arquivo com data
+      final zipPath = p.join(tempDir.path, "backup_fazenda_${DateTime.now().day}_${DateTime.now().month}.zip");
+      
+      encoder.create(zipPath);
 
-      // 3. Compartilha (WhatsApp, Drive, etc)
-      await Share.shareXFiles([XFile(backupPath)], text: 'Backup Gestor de Gado ($dataHoje)');
+      // Adiciona o banco de dados
+      final dbFile = File(dbPath);
+      if (await dbFile.exists()) {
+        encoder.addFile(dbFile);
+      }
+
+      // Adiciona as fotos
+      final arquivos = appDir.listSync();
+      int fotosContadas = 0;
+      for (var arquivo in arquivos) {
+        if (arquivo is File && arquivo.path.endsWith('.jpg')) {
+          encoder.addFile(arquivo);
+          fotosContadas++;
+        }
+      }
+      encoder.close();
+
+      await Share.shareXFiles([XFile(zipPath)], text: 'Backup Gestor de Gado ($fotosContadas fotos)');
 
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao criar backup: $e"), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red));
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // --- FUNÇÃO DE IMPORTAR (RESTAURAR) ---
+  // --- RESTAURAR (ACEITA ZIP E DB) ---
   Future<void> _restaurarBackup() async {
     try {
-      // 1. Escolher o arquivo
-      FilePickerResult? result = await FilePicker.platform.pickFiles();
+      // 1. Agora permitimos 'zip' (novo) e 'db' (antigo)
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom, 
+        allowedExtensions: ['zip', 'db']
+      );
 
       if (result != null) {
         final confirmou = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
-            title: const Text("Cuidado! ⚠️", style: TextStyle(color: Colors.redAccent)),
-            content: const Text(
-              "Restaurar um backup vai APAGAR todos os dados atuais do aplicativo e substituir pelos do arquivo.\n\nTem certeza?",
-              style: TextStyle(color: Colors.white70),
-            ),
+            title: const Text("Restaurar?"),
+            content: const Text("Isso substituirá todos os dados atuais do aplicativo.\nTem certeza?"),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true), 
-                child: const Text("SIM, RESTAURAR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))
-              ),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("SIM", style: TextStyle(color: Colors.red))),
             ],
           ),
         );
@@ -74,29 +82,48 @@ class _BackupScreenState extends State<BackupScreen> {
         if (confirmou == true) {
           setState(() => _isLoading = true);
           
-          // 2. Fecha o banco atual
+          // Fecha conexão com o banco para poder substituir o arquivo
           await DatabaseHelper.instance.closeAndReset();
 
-          // 3. Substitui o arquivo
-          final File novoArquivo = File(result.files.single.path!);
-          final String dbPath = await DatabaseHelper.instance.getDbPath();
-          
-          await novoArquivo.copy(dbPath);
+          final File arquivoSelecionado = File(result.files.single.path!);
+          final String extensao = p.extension(arquivoSelecionado.path).toLowerCase();
+          final dbPath = await DatabaseHelper.instance.getDbPath();
+          final appDir = await getApplicationDocumentsDirectory();
+
+          // --- CENÁRIO 1: É UM BACKUP NOVO (.ZIP) ---
+          if (extensao == '.zip') {
+            final bytes = await arquivoSelecionado.readAsBytes();
+            final archive = ZipDecoder().decodeBytes(bytes);
+
+            for (final file in archive) {
+              if (file.isFile) {
+                final data = file.content as List<int>;
+                if (file.name == 'fazenda.db') {
+                  File(dbPath)
+                    ..createSync(recursive: true)
+                    ..writeAsBytesSync(data);
+                } else if (file.name.endsWith('.jpg')) {
+                  File(p.join(appDir.path, file.name))
+                    ..createSync(recursive: true)
+                    ..writeAsBytesSync(data);
+                }
+              }
+            }
+          } 
+          // --- CENÁRIO 2: É UM BACKUP ANTIGO (.DB) ---
+          else {
+            // Apenas copia o arquivo selecionado para o lugar do banco oficial
+            await arquivoSelecionado.copy(dbPath);
+          }
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Dados restaurados com sucesso!"), backgroundColor: Colors.green),
-            );
-            Navigator.pop(context, true); 
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Restaurado com sucesso!"), backgroundColor: Colors.green));
+            Navigator.pop(context, true);
           }
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao restaurar: $e"), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -105,91 +132,40 @@ class _BackupScreenState extends State<BackupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text("Backup & Segurança"),
-        backgroundColor: Colors.grey[900],
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text("Backup Completo")),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.green))
+        ? const Center(child: CircularProgressIndicator())
         : Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.cloud_sync, size: 80, color: Colors.blueGrey),
+                const Icon(Icons.history_edu, size: 80, color: Colors.blueGrey),
                 const SizedBox(height: 20),
-                const Text(
-                  "Proteja seus dados",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                ),
+                const Text("Central de Backup", textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10),
-                Text(
-                  "Salve seus dados no WhatsApp ou Drive. Se mudar de celular, use Restaurar.",
+                const Text(
+                  "Gera um arquivo ZIP com dados e fotos.",
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  style: TextStyle(color: Colors.grey),
                 ),
-                const SizedBox(height: 50),
-
-                _buildButton(
-                  icon: Icons.upload,
-                  titulo: "Fazer Backup (Salvar)",
-                  subtitulo: "Envia seus dados para fora do app",
-                  cor: Colors.green[800]!,
-                  onTap: _fazerBackup,
+                const SizedBox(height: 40),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.save), 
+                  label: const Text("CRIAR BACKUP"), 
+                  onPressed: _fazerBackup,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.all(15)),
                 ),
-
                 const SizedBox(height: 20),
-
-                _buildButton(
-                  icon: Icons.download,
-                  titulo: "Restaurar Dados",
-                  subtitulo: "Apaga o atual e carrega um arquivo antigo",
-                  cor: Colors.blueGrey[800]!,
-                  onTap: _restaurarBackup,
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.restore), 
+                  label: const Text("RESTAURAR"), 
+                  onPressed: _restaurarBackup,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, padding: const EdgeInsets.all(15)),
                 ),
               ],
             ),
           ),
-    );
-  }
-
-  Widget _buildButton({
-    required IconData icon, required String titulo, required String subtitulo, 
-    required Color cor, required VoidCallback onTap
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: cor,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: Colors.white, size: 30),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(titulo, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subtitulo, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.white30),
-          ],
-        ),
-      ),
     );
   }
 }

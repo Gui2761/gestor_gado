@@ -58,54 +58,59 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // --- NOVA FUNÇÃO DE EXPORTAR ---
-  void _menuExportarPDF() {
+  // --- MENU DE ESCOLHA DO RELATÓRIO (GTA ou GERAL) ---
+  void _mostrarOpcoesPDF() {
     if (_animaisFiltrados.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("A lista está vazia!")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lista vazia!")));
       return;
     }
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text("Escolha o Relatório", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              
-              // OPÇÃO 1: GTA
-              ListTile(
-                leading: const Icon(Icons.description, color: Colors.blue, size: 30),
-                title: const Text("Documento para GTA", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text("Contagem oficial por idade e sexo"),
-                onTap: () async {
-                  Navigator.pop(context); // Fecha o menu
-                  final pdfService = PdfService();
-                  await pdfService.gerarRelatorioGTA(_animaisFiltrados);
-                },
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Escolha o Relatório", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            
+            // OPÇÃO 1: GTA
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.description, color: Colors.blue),
               ),
-              const Divider(),
-              
-              // OPÇÃO 2: GERAL
-              ListTile(
-                leading: const Icon(Icons.table_chart, color: Colors.green, size: 30),
-                title: const Text("Relatório da Fazenda"),
-                subtitle: const Text("Lista simples com peso e status"),
-                onTap: () async {
-                  Navigator.pop(context); // Fecha o menu
-                  final pdfService = PdfService();
-                  await pdfService.gerarRelatorioGeral(_animaisFiltrados);
-                },
+              title: const Text("Documento para GTA", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Contagem oficial por idade e sexo"),
+              onTap: () {
+                Navigator.pop(ctx);
+                PdfService().gerarRelatorioGTA(_animaisFiltrados);
+              },
+            ),
+            
+            const SizedBox(height: 10),
+
+            // OPÇÃO 2: GERAL
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.list_alt, color: Colors.green),
               ),
-            ],
-          ),
-        );
-      },
+              title: const Text("Relatório Geral"),
+              subtitle: const Text("Lista simples do rebanho"),
+              onTap: () {
+                Navigator.pop(ctx);
+                PdfService().gerarRelatorioGeral(_animaisFiltrados);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -131,13 +136,14 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: "Financeiro",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FinancasScreen())),
           ),
-          // BOTAO PDF AGORA ABRE O MENU
+          // BOTÃO PDF AGORA ABRE O MENU
           IconButton(
-            onPressed: _menuExportarPDF, 
+            onPressed: _mostrarOpcoesPDF, 
             icon: const Icon(Icons.picture_as_pdf),
-            tooltip: "Gerar Relatórios",
+            tooltip: "Relatórios",
           ),
           
+          // MENU DE OPÇÕES (BACKUP)
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'backup') {
@@ -180,6 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Column(
         children: [
+          // ÁREA DE BUSCA E FILTROS
           Container(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
             color: Theme.of(context).primaryColor.withOpacity(0.05),
@@ -233,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
+          // LISTA DE ANIMAIS
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator())

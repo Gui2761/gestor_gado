@@ -1,205 +1,132 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
-import 'package:archive/archive_io.dart'; // Importante para o ZIP
-import '../database/database_helper.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 
-class BackupScreen extends StatefulWidget {
-  const BackupScreen({super.key});
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
 
-  @override
-  State<BackupScreen> createState() => _BackupScreenState();
-}
+  DatabaseHelper._init();
 
-class _BackupScreenState extends State<BackupScreen> {
-  bool _isLoading = false;
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('fazenda.db');
+    return _database!;
+  }
 
-  // --- FAZER BACKUP (ZIP = BANCO + FOTOS) ---
-  Future<void> _fazerBackup() async {
-    setState(() => _isLoading = true);
-    try {
-      // 1. Caminhos
-      final dbPath = await DatabaseHelper.instance.getDbPath();
-      final appDir = await getApplicationDocumentsDirectory();
-      
-      // 2. Cria o codificador ZIP
-      var encoder = ZipFileEncoder();
-      final tempDir = await getTemporaryDirectory();
-      final zipPath = p.join(tempDir.path, "backup_fazenda_${DateTime.now().day}_${DateTime.now().month}.zip");
-      
-      encoder.create(zipPath);
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
 
-      // 3. Adiciona o Banco de Dados no ZIP
-      final dbFile = File(dbPath);
-      if (await dbFile.exists()) {
-        encoder.addFile(dbFile);
-      }
+    return await openDatabase(path, version: 1, onCreate: _createDB);
+  }
 
-      // 4. Adiciona TODAS as fotos (.jpg) no ZIP
-      // Procura arquivos na pasta do app
-      final arquivos = appDir.listSync();
-      int fotosContadas = 0;
-      for (var arquivo in arquivos) {
-        if (arquivo is File && arquivo.path.endsWith('.jpg')) {
-          encoder.addFile(arquivo);
-          fotosContadas++;
-        }
-      }
+  Future _createDB(Database db, int version) async {
+    const idType = 'INTEGER PRIMARY KEY AUTOINCREMENT';
+    const textType = 'TEXT NOT NULL';
+    const doubleType = 'REAL NOT NULL';
 
-      encoder.close();
+    // 1. Tabela Animais
+    await db.execute('''
+      CREATE TABLE animais ( 
+        id $idType, 
+        brinco $textType,
+        nome $textType,
+        raca $textType,
+        sexo $textType,
+        status $textType, 
+        peso $doubleType,
+        data_nascimento $textType,
+        foto_path TEXT
+      )
+    ''');
 
-      // 5. Compartilha o ZIP
-      await Share.shareXFiles(
-        [XFile(zipPath)], 
-        text: 'Backup Completo (Dados + $fotosContadas fotos)'
-      );
+    // 2. Tabela Finanças
+    await db.execute('''
+      CREATE TABLE financas (
+        id $idType,
+        tipo $textType,
+        descricao $textType,
+        valor $doubleType,
+        data $textType
+      )
+    ''');
 
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro no backup: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
+    // 3. Tabela Vacinas
+    await db.execute('''
+      CREATE TABLE vacinas (
+        id $idType,
+        nome $textType,
+        data_aplicacao $textType,
+        data_proxima TEXT,
+        observacao $textType
+      )
+    ''');
+  }
+
+  // --- FUNÇÕES DE CONTROLE ---
+  Future<void> closeAndReset() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
     }
   }
 
-  // --- RESTAURAR BACKUP (DESCOMPACTAR ZIP) ---
-  Future<void> _restaurarBackup() async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip'], // Só aceita ZIP
-      );
-
-      if (result != null) {
-        final confirmou = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text("Restaurar Backup?"),
-            content: const Text(
-              "Isso vai SUBSTITUIR todos os dados atuais pelos do arquivo.\nTem certeza?",
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true), 
-                child: const Text("SIM", style: TextStyle(color: Colors.red))
-              ),
-            ],
-          ),
-        );
-
-        if (confirmou == true) {
-          setState(() => _isLoading = true);
-          
-          // 1. Fecha o banco atual para não corromper
-          await DatabaseHelper.instance.closeAndReset();
-
-          // 2. Prepara diretórios
-          final File zipFile = File(result.files.single.path!);
-          final appDir = await getApplicationDocumentsDirectory();
-          final dbPath = await DatabaseHelper.instance.getDbPath();
-
-          // 3. Lê o ZIP
-          final bytes = await zipFile.readAsBytes();
-          final archive = ZipDecoder().decodeBytes(bytes);
-
-          // 4. Extrai arquivo por arquivo
-          for (final file in archive) {
-            if (file.isFile) {
-              final data = file.content as List<int>;
-              
-              if (file.name == 'fazenda.db') {
-                // Se for o banco, salva no lugar certo
-                File(dbPath)
-                  ..createSync(recursive: true)
-                  ..writeAsBytesSync(data);
-              } else if (file.name.endsWith('.jpg')) {
-                // Se for foto, salva na pasta do app
-                final fotoPath = p.join(appDir.path, file.name);
-                File(fotoPath)
-                  ..createSync(recursive: true)
-                  ..writeAsBytesSync(data);
-              }
-            }
-          }
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Backup restaurado com sucesso!"), backgroundColor: Colors.green),
-            );
-            Navigator.pop(context, true); 
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao restaurar: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
+  Future<String> getDbPath() async {
+    final dbPath = await getDatabasesPath();
+    return join(dbPath, 'fazenda.db');
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Backup Completo")),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Icon(Icons.folder_zip, size: 80, color: Colors.green),
-                const SizedBox(height: 20),
-                const Text(
-                  "Backup com Fotos",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  "O sistema agora gera um arquivo .ZIP contendo todos os dados e as fotos dos animais.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 40),
+  // --- MÉTODOS ANIMAIS ---
+  Future<int> insertAnimal(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('animais', row);
+  }
 
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.upload),
-                  label: const Text("GERAR ARQUIVO DE BACKUP (ZIP)"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(15)
-                  ),
-                  onPressed: _fazerBackup,
-                ),
+  Future<int> updateAnimal(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    int id = row['id'];
+    return await db.update('animais', row, where: 'id = ?', whereArgs: [id]);
+  }
 
-                const SizedBox(height: 20),
+  Future<List<Map<String, dynamic>>> queryAllAnimais() async {
+    Database db = await instance.database;
+    return await db.query('animais', orderBy: "id DESC");
+  }
 
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.download),
-                  label: const Text("RESTAURAR ARQUIVO (ZIP)"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(15)
-                  ),
-                  onPressed: _restaurarBackup,
-                ),
-              ],
-            ),
-          ),
-    );
+  Future<int> deleteAnimal(int id) async {
+    Database db = await instance.database;
+    return await db.delete('animais', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- MÉTODOS FINANÇAS ---
+  Future<int> insertTransacao(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('financas', row);
+  }
+
+  Future<List<Map<String, dynamic>>> queryAllTransacoes() async {
+    Database db = await instance.database;
+    return await db.query('financas', orderBy: "id DESC");
+  }
+
+  Future<int> deleteTransacao(int id) async {
+    Database db = await instance.database;
+    return await db.delete('financas', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- MÉTODOS VACINAS ---
+  Future<int> insertVacina(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('vacinas', row);
+  }
+
+  Future<List<Map<String, dynamic>>> queryAllVacinas() async {
+    Database db = await instance.database;
+    return await db.query('vacinas', orderBy: "data_aplicacao DESC");
+  }
+
+  Future<int> deleteVacina(int id) async {
+    Database db = await instance.database;
+    return await db.delete('vacinas', where: 'id = ?', whereArgs: [id]);
   }
 }

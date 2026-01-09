@@ -5,11 +5,10 @@ import '../models/animal.dart';
 
 class PdfService {
 
-  // --- 1. FUNÇÃO PRINCIPAL: RELATÓRIO GERAL (Aquele simples) ---
+  // --- 1. RELATÓRIO GERAL (Simples) ---
   Future<void> gerarRelatorioGeral(List<Animal> animais) async {
     final pdf = pw.Document();
-    
-    // Ordena por nome
+    // Ordena por nome para ficar organizado
     animais.sort((a, b) => (a.nome ?? '').compareTo(b.nome ?? ''));
 
     pdf.addPage(
@@ -28,47 +27,46 @@ class PdfService {
     await _abrirPDF(pdf, "relatorio_geral");
   }
 
-  // --- 2. NOVA FUNÇÃO: RELATÓRIO PARA GTA (O Completo) ---
+  // --- 2. RELATÓRIO ESPECIAL PARA GTA (Novo) ---
   Future<void> gerarRelatorioGTA(List<Animal> animais) async {
     final pdf = pw.Document();
 
-    // Filtra apenas os animais que vão viajar (Ativos ou Vendidos)
-    // Se quiser todos, pode remover esse filtro
-    final listaParaGTA = animais; 
-
-    // Calcula os totais por faixa etária (A MÁGICA ACONTECE AQUI)
-    final dadosGTA = _calcularFaixasEtarias(listaParaGTA);
+    // A MÁGICA: Calcula os totais por faixa etária automaticamente
+    final dadosGTA = _calcularFaixasEtarias(animais);
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(20),
         build: (context) => [
-          _buildHeader("Auxiliar para Emissão de GTA", cor: PdfColors.blue800),
+          _buildHeader("Relatório Auxiliar para GTA", cor: PdfColors.blue800),
           pw.SizedBox(height: 10),
-          pw.Text("Use os dados abaixo para preencher o formulário do governo.", style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+          pw.Text(
+            "Utilize os dados abaixo para preencher o formulário de trânsito animal (GTA).",
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)
+          ),
           pw.SizedBox(height: 20),
           
-          // Tabela Resumo (Para preencher a guia)
-          pw.Text("1. Resumo por Idade e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          // TABELA 1: O RESUMO QUE O GOVERNO PEDE
+          pw.Text("1. Contagem por Faixa Etária e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
           pw.SizedBox(height: 5),
           _buildTabelaFaixaEtaria(dadosGTA),
           
           pw.SizedBox(height: 30),
 
-          // Tabela Detalhada (Para anexo)
-          pw.Text("2. Lista Detalhada (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          // TABELA 2: LISTA DETALHADA DOS ANIMAIS (Para conferência)
+          pw.Text("2. Animais Desta Carga (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
           pw.SizedBox(height: 5),
-          _buildTabelaDetalhadaGTA(listaParaGTA),
+          _buildTabelaDetalhadaGTA(animais),
         ],
       ),
     );
     await _abrirPDF(pdf, "auxiliar_gta");
   }
 
-  // --- CÁLCULOS DA GTA ---
+  // --- CÁLCULOS MATEMÁTICOS PARA GTA ---
   Map<String, Map<String, int>> _calcularFaixasEtarias(List<Animal> animais) {
-    // Inicializa zerado
+    // Inicializa o mapa com as faixas padrão da GTA zeradas
     final map = {
       '0 a 12 meses': {'M': 0, 'F': 0},
       '13 a 24 meses': {'M': 0, 'F': 0},
@@ -79,39 +77,45 @@ class PdfService {
     final hoje = DateTime.now();
 
     for (var boi in animais) {
-      // Calcula meses
+      // 1. Descobre a idade em meses
       int meses = 0;
       try {
-        final nasc = DateTime.parse(boi.dataNascimento);
-        meses = (hoje.difference(nasc).inDays / 30).floor();
+        if (boi.dataNascimento.isNotEmpty) {
+           final nasc = DateTime.parse(boi.dataNascimento);
+           meses = (hoje.difference(nasc).inDays / 30).floor();
+        } else {
+           meses = 37; // Sem data = Adulto (segurança)
+        }
       } catch (e) {
-        meses = 37; // Se não tiver data, joga para adulto por segurança
+        meses = 37; 
       }
 
+      // 2. Define a Faixa
       String faixa = 'Acima de 36 meses';
       if (meses <= 12) faixa = '0 a 12 meses';
       else if (meses <= 24) faixa = '13 a 24 meses';
       else if (meses <= 36) faixa = '25 a 36 meses';
 
-      // Define sexo (Macho ou Fêmea)
-      String sexo = (boi.sexo.toUpperCase().startsWith('M') || boi.sexo.toUpperCase().startsWith('T')) ? 'M' : 'F';
+      // 3. Define o Sexo (M ou F)
+      String sexo = (boi.sexo.toUpperCase().startsWith('M')) ? 'M' : 'F';
 
+      // 4. Soma +1 na categoria certa
       map[faixa]![sexo] = (map[faixa]![sexo] ?? 0) + 1;
     }
     return map;
   }
 
-  // --- COMPONENTES VISUAIS ---
+  // --- COMPONENTES VISUAIS (TABELAS) ---
 
   pw.Widget _buildHeader(String titulo, {PdfColor cor = PdfColors.green700}) {
     return pw.Container(
       width: double.infinity,
-      decoration: pw.BoxDecoration(color: cor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5))),
       padding: const pw.EdgeInsets.all(10),
+      decoration: pw.BoxDecoration(color: cor, borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5))),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(titulo, style: pw.TextStyle(color: PdfColors.white, fontSize: 20, fontWeight: pw.FontWeight.bold)),
+          pw.Text(titulo, style: pw.TextStyle(color: PdfColors.white, fontSize: 18, fontWeight: pw.FontWeight.bold)),
           pw.Text(
             "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
             style: const pw.TextStyle(color: PdfColors.white)
@@ -134,7 +138,7 @@ class PdfService {
           entry.key,
           machos,
           femeas,
-          (machos + femeas), // Total da linha
+          (machos + femeas),
         ];
       }).toList(),
     );
@@ -142,14 +146,16 @@ class PdfService {
 
   pw.Widget _buildTabelaDetalhadaGTA(List<Animal> animais) {
     return pw.TableHelper.fromTextArray(
-      headers: ['Brinco', 'Nome', 'Sexo', 'Raça', 'Idade (Meses)'],
+      headers: ['Brinco', 'Nome', 'Sexo', 'Raça', 'Idade Est.'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
       cellStyle: const pw.TextStyle(fontSize: 10),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
       data: animais.map((a) {
         int meses = 0;
         try {
-          meses = (DateTime.now().difference(DateTime.parse(a.dataNascimento)).inDays / 30).floor();
+           if (a.dataNascimento.isNotEmpty) {
+             meses = (DateTime.now().difference(DateTime.parse(a.dataNascimento)).inDays / 30).floor();
+           }
         } catch (_) {}
         
         return [
@@ -157,19 +163,16 @@ class PdfService {
           a.nome ?? '-',
           a.sexo,
           a.raca,
-          "$meses m",
+          "$meses meses",
         ];
       }).toList(),
     );
   }
 
-  // Tabela Antiga (para o relatório geral)
   pw.Widget _buildTabelaGeral(List<Animal> animais) {
     return pw.TableHelper.fromTextArray(
       border: null,
       headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-      headerHeight: 30,
-      cellHeight: 30,
       headers: <String>['Brinco', 'Nome/Raça', 'Sexo', 'Peso', 'Status'],
       data: animais.map((animal) {
         return [
