@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../services/pdf_service.dart';
-// Removi o import do notification_service pois não vamos mais usar testes aqui
 import 'cadastro_animal_screen.dart';
 import 'financas_screen.dart';
 import 'vacinas_screen.dart';
@@ -59,17 +58,55 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _exportarPDF() async {
-    if (_animaisFiltrados.isNotEmpty) {
-      final pdfService = PdfService();
-      await pdfService.gerarRelatorioGado(_animaisFiltrados);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("A lista está vazia para gerar PDF!")),
-        );
-      }
+  // --- NOVA FUNÇÃO DE EXPORTAR ---
+  void _menuExportarPDF() {
+    if (_animaisFiltrados.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("A lista está vazia!")));
+      return;
     }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Escolha o Relatório", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              
+              // OPÇÃO 1: GTA
+              ListTile(
+                leading: const Icon(Icons.description, color: Colors.blue, size: 30),
+                title: const Text("Documento para GTA", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text("Contagem oficial por idade e sexo"),
+                onTap: () async {
+                  Navigator.pop(context); // Fecha o menu
+                  final pdfService = PdfService();
+                  await pdfService.gerarRelatorioGTA(_animaisFiltrados);
+                },
+              ),
+              const Divider(),
+              
+              // OPÇÃO 2: GERAL
+              ListTile(
+                leading: const Icon(Icons.table_chart, color: Colors.green, size: 30),
+                title: const Text("Relatório da Fazenda"),
+                subtitle: const Text("Lista simples com peso e status"),
+                onTap: () async {
+                  Navigator.pop(context); // Fecha o menu
+                  final pdfService = PdfService();
+                  await pdfService.gerarRelatorioGeral(_animaisFiltrados);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -94,13 +131,13 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: "Financeiro",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FinancasScreen())),
           ),
+          // BOTAO PDF AGORA ABRE O MENU
           IconButton(
-            onPressed: _exportarPDF, 
+            onPressed: _menuExportarPDF, 
             icon: const Icon(Icons.picture_as_pdf),
-            tooltip: "PDF",
+            tooltip: "Gerar Relatórios",
           ),
           
-          // --- MENU DE OPÇÕES (LIMPO) ---
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'backup') {
@@ -108,7 +145,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (c) => const BackupScreen()),
                 );
-                // Se restaurou dados, recarrega a lista
                 if (result == true) _atualizarLista();
               }
             },
@@ -144,7 +180,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Column(
         children: [
-          // ÁREA DE BUSCA E FILTROS
           Container(
             padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
             color: Theme.of(context).primaryColor.withOpacity(0.05),
@@ -198,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
-          // LISTA DE ANIMAIS
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator())
