@@ -33,21 +33,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _atualizarLista();
   }
 
-  // Essa função recarrega tudo do banco
   void _atualizarLista() async {
     setState(() => _isLoading = true);
     
-    // 1. Busca todos os animais
+    // Busca Animais e Histórico
     final dataAnimais = await DatabaseHelper.instance.queryAllAnimais();
-    
-    // 2. Busca histórico completo (ordenado do mais novo para o mais velho)
     final todosManejos = await DatabaseHelper.instance.queryTodosManejos();
     
-    // 3. Pega apenas o PRIMEIRO de cada animal (que é o mais recente)
+    // Mapeia o último tratamento de cada boi
     Map<int, Manejo> mapTemp = {};
     for (var m in todosManejos) {
        final manejo = Manejo.fromMap(m);
-       // Se ainda não tenho registro pra esse boi, adiciono (esse é o mais novo)
        if (!mapTemp.containsKey(manejo.animalId)) {
          mapTemp[manejo.animalId] = manejo;
        }
@@ -74,11 +70,18 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _mostrarOpcoesPDF() {
+  // --- PDF ATUALIZADO (AGORA PUXA DADOS DE VACINA) ---
+  void _mostrarOpcoesPDF() async {
     if (_animaisFiltrados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lista vazia!")));
       return;
     }
+
+    // Busca as últimas movimentações gerais para o relatório GTA
+    final dadosManejo = await DatabaseHelper.instance.queryTodosManejos();
+    final listaManejo = dadosManejo.map((e) => Manejo.fromMap(e)).toList();
+
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -87,8 +90,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ListTile(
             leading: const Icon(Icons.description, color: Colors.blue),
             title: const Text("Documento para GTA"),
-            subtitle: const Text("Contagem oficial por idade e sexo"),
-            onTap: () { Navigator.pop(ctx); PdfService().gerarRelatorioGTA(_animaisFiltrados); },
+            subtitle: const Text("Contagem + Vacinas Recentes"),
+            onTap: () { 
+              Navigator.pop(ctx); 
+              // Passa a lista de animais E a lista de vacinas
+              PdfService().gerarRelatorioGTA(_animaisFiltrados, listaManejo); 
+            },
           ),
           ListTile(
             leading: const Icon(Icons.list_alt, color: Colors.green),
@@ -108,21 +115,26 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text("Gestão de Gado"),
         elevation: 0,
         actions: [
+          // 1. Painel
           IconButton(
             icon: const Icon(Icons.bar_chart),
             tooltip: "Painel",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DashboardScreen())),
           ),
+          // 2. Financeiro
           IconButton(
             icon: const Icon(Icons.attach_money),
             tooltip: "Financeiro",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const FinancasScreen())),
           ),
+          // 3. PDF
           IconButton(
             onPressed: _mostrarOpcoesPDF, 
             icon: const Icon(Icons.picture_as_pdf),
             tooltip: "Relatórios",
           ),
+          
+          // 4. Menu (Backup)
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'backup') {
@@ -152,9 +164,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.add),
         tooltip: "Novo Animal",
         onPressed: () async {
-          // Navega e espera voltar, depois ATUALIZA
           await Navigator.push(context, MaterialPageRoute(builder: (context) => const CadastroAnimalScreen()));
-          _atualizarLista(); 
+          _atualizarLista();
         },
       ),
 
@@ -227,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.all(8),
                     itemBuilder: (context, index) {
                       final animal = _animaisFiltrados[index];
-                      // Pega o último tratamento deste boi
+                      // PEGA O ÚLTIMO REMÉDIO DESTE BOI
                       final ultimoManejo = _ultimoManejoPorAnimal[animal.id];
                       
                       return Card(
@@ -237,9 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           onTap: () async {
-                            // AQUI É O SEGREDO: 'await' espera você voltar da tela de edição
                             await Navigator.push(context, MaterialPageRoute(builder: (context) => CadastroAnimalScreen(animalParaEditar: animal)));
-                            // Quando voltar, roda isso para atualizar a lista e remover remédios excluídos
                             _atualizarLista(); 
                           },
                           leading: CircleAvatar(
@@ -288,7 +297,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
 
                               // --- LINHA VERDE DO ÚLTIMO REMÉDIO ---
-                              // Se existir um remédio, mostra. Se foi excluído, 'ultimoManejo' será null e isso some.
                               if (ultimoManejo != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6),

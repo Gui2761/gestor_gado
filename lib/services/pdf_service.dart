@@ -7,7 +7,70 @@ import '../models/manejo.dart';
 
 class PdfService {
 
-  // --- 1. RELATÓRIO GERAL ---
+  // --- 1. RELATÓRIO GTA (ATUALIZADO COM SANIDADE) ---
+  Future<void> gerarRelatorioGTA(List<Animal> animais, List<Manejo> ultimosManejos) async {
+    final pdf = pw.Document();
+    final dadosGTA = _calcularFaixasEtarias(animais);
+
+    // Filtra apenas vacinas e exames recentes para mostrar no documento
+    final vacinasRecentes = ultimosManejos.where((m) => 
+      m.categoria.contains('Vacina') || m.categoria.contains('Exame') || m.categoria.contains('Outro')
+    ).take(5).toList();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (context) => [
+          _buildHeader("Auxiliar para Emissão de GTA", cor: PdfColors.blue800),
+          pw.SizedBox(height: 15),
+          
+          // --- BLOCO 1: SANIDADE (NOVO) ---
+          pw.Text("1. Informações Sanitárias", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          pw.SizedBox(height: 5),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400), borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5))),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (vacinasRecentes.isEmpty)
+                  pw.Text("Nenhuma vacina recente registrada.", style: const pw.TextStyle(color: PdfColors.grey))
+                else
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text("Últimos Eventos Sanitários Registrados:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.SizedBox(height: 5),
+                      ...vacinasRecentes.map((m) => 
+                        pw.Text("• ${m.data.substring(0,10)} - ${m.categoria}: ${m.nome}", style: const pw.TextStyle(fontSize: 10))
+                      ),
+                    ]
+                  ),
+                pw.Divider(),
+                pw.Text("Lembrete: Verificar validade dos exames de Brucelose/Tuberculose se for reprodução.", style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.red)),
+              ]
+            )
+          ),
+          pw.SizedBox(height: 20),
+
+          // --- BLOCO 2: CONTAGEM ---
+          pw.Text("2. Contagem por Faixa Etária e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          pw.SizedBox(height: 5),
+          _buildTabelaFaixaEtaria(dadosGTA),
+          pw.SizedBox(height: 20),
+
+          // --- BLOCO 3: LISTA DETALHADA ---
+          pw.Text("3. Identificação Individual (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+          pw.SizedBox(height: 5),
+          _buildTabelaDetalhadaGTA(animais),
+        ],
+      ),
+    );
+    await _abrirPDF(pdf, "auxiliar_gta");
+  }
+
+  // --- 2. RELATÓRIO GERAL (MANTIDO) ---
   Future<void> gerarRelatorioGeral(List<Animal> animais) async {
     final pdf = pw.Document();
     animais.sort((a, b) => (a.nome ?? '').compareTo(b.nome ?? ''));
@@ -28,32 +91,7 @@ class PdfService {
     await _abrirPDF(pdf, "relatorio_geral");
   }
 
-  // --- 2. RELATÓRIO GTA ---
-  Future<void> gerarRelatorioGTA(List<Animal> animais) async {
-    final pdf = pw.Document();
-    final dadosGTA = _calcularFaixasEtarias(animais);
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        build: (context) => [
-          _buildHeader("Auxiliar para GTA", cor: PdfColors.blue800),
-          pw.SizedBox(height: 20),
-          pw.Text("1. Contagem por Faixa Etária e Sexo", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 5),
-          _buildTabelaFaixaEtaria(dadosGTA),
-          pw.SizedBox(height: 20),
-          pw.Text("2. Animais (Anexo)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 5),
-          _buildTabelaDetalhadaGTA(animais),
-        ],
-      ),
-    );
-    await _abrirPDF(pdf, "auxiliar_gta");
-  }
-
-  // --- 3. FICHA INDIVIDUAL (COM REMÉDIOS) ---
+  // --- 3. FICHA INDIVIDUAL (MANTIDA) ---
   Future<void> gerarFichaAnimal(Animal animal, List<Manejo> historico) async {
     final pdf = pw.Document();
 
@@ -65,10 +103,9 @@ class PdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              _buildHeader("Ficha Individual do Animal", cor: PdfColors.teal800),
+              _buildHeader("Ficha Individual do Animal", cor: PdfColors.green800),
               pw.SizedBox(height: 20),
               
-              // DADOS DO ANIMAL
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
@@ -78,7 +115,6 @@ class PdfService {
                 child: pw.Row(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    // Se tivesse foto, seria complexo por aqui, vamos focar nos dados
                     pw.Expanded(
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -105,18 +141,17 @@ class PdfService {
               ),
 
               pw.SizedBox(height: 30),
-              pw.Text("Histórico Sanitário (Vacinas e Medicamentos)", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.teal800)),
-              pw.Divider(color: PdfColors.teal),
+              pw.Text("Histórico Sanitário", style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
+              pw.Divider(color: PdfColors.green),
               pw.SizedBox(height: 10),
 
-              // TABELA DE REMÉDIOS
               if (historico.isEmpty)
                 pw.Text("Nenhum registro encontrado.", style: const pw.TextStyle(color: PdfColors.grey))
               else
                 pw.TableHelper.fromTextArray(
                   headers: ['Data', 'Tipo', 'Produto', 'Observação'],
                   headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.teal600),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.green700),
                   rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
                   cellPadding: const pw.EdgeInsets.all(8),
                   data: historico.map((m) {
@@ -137,6 +172,8 @@ class PdfService {
     await _abrirPDF(pdf, "ficha_animal_${animal.brinco}");
   }
 
+  // --- MÉTODOS AUXILIARES E DESIGN ---
+  
   pw.Widget _itemFicha(String label, String value, {bool destaque = false}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 5),
@@ -160,9 +197,7 @@ class PdfService {
     }
   }
 
-  // --- MÉTODOS AUXILIARES ---
   Map<String, Map<String, int>> _calcularFaixasEtarias(List<Animal> animais) {
-    // (Código igual ao anterior)
      final map = {
       '0 a 12 meses': {'M': 0, 'F': 0},
       '13 a 24 meses': {'M': 0, 'F': 0},
@@ -225,7 +260,7 @@ class PdfService {
 
   pw.Widget _buildTabelaDetalhadaGTA(List<Animal> animais) {
      return pw.TableHelper.fromTextArray(
-      headers: ['Brinco', 'Raça', 'Idade Est.'],
+      headers: ['Brinco', 'Raça', 'Nascimento'],
       data: animais.map((a) => [a.brinco, a.raca, _formatarData(a.dataNascimento)]).toList(),
     );
   }
@@ -237,7 +272,7 @@ class PdfService {
       decoration: const pw.BoxDecoration(border: pw.Border(top: pw.BorderSide(color: PdfColors.grey400))),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.end,
-        children: [pw.Text("Total: ${animais.length} animais | Peso: $pesoTotal kg", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))],
+        children: [pw.Text("Total: ${animais.length} animais | Peso Total: $pesoTotal kg", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))],
       ),
     );
   }
