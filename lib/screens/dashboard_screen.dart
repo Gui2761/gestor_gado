@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../models/transacao.dart';
+import 'diagnostico_screen.dart'; // <-- Nova importação do ecrã de IA
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -69,7 +70,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // --- BOTÃO: DIAGNÓSTICO INTELIGENTE (IA) ---
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.psychology, size: 28),
+                  label: const Text(
+                    "Diagnóstico Inteligente (IA)", 
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    // Navegação para o novo ecrã
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const DiagnosticoScreen()),
+                    );
+                  },
+                ),
+                
+                const SizedBox(height: 20),
+
                 // --- CARD 1: REBANHO (GRÁFICO PIZZA) ---
                 Card(
                   elevation: 4,
