@@ -1,16 +1,21 @@
-# gestor_gado
+Gestor Gado 🐄🌾
+Aplicativo voltado para a modernização, gestão e otimização de processos no setor agropecuário, facilitando a vida do pecuarista na palma da mão.
 
-A new Flutter project.
+✨ Funcionalidades
 
-## Getting Started
+Cadastro de Rebanho: Registro de identificação, raça, idade e peso dos animais.
 
-This project is a starting point for a Flutter application.
+Controle Sanitário: Acompanhamento de vacinas, exames e histórico de saúde de cada cabeça de gado.
 
-A few resources to get you started if this is your first Flutter project:
+Indicadores de Crescimento: Otimização da rotina da fazenda com dados consolidados.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+🚀 Tecnologias Utilizadas
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Frontend (Mobile): Flutter (Dart)
+
+Arquitetura: Componentização de telas e formulários agropecuários.
+
+⚙️ Configuração e Instalação
+Pré-requisitos
+
+Flutter SDK instalado.
