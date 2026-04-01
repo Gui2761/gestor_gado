@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 class DiagnosticoScreen extends StatefulWidget {
   const DiagnosticoScreen({Key? key}) : super(key: key);
 
@@ -25,10 +26,8 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
   bool _nasalDischarge = false;
   bool _eyeDischarge = false;
 
-  void _analisarDiagnostico() {
+  void _analisarDiagnostico() async {
     if (_formKey.currentState!.validate()) {
-      // Este mapa (Map) já está estruturado com os nomes exatos das colunas do nosso dataset!
-      // Mais tarde, enviaremos este Map convertido em JSON para a nossa API em FastAPI.
       final dadosBovino = {
         "Body_Temperature": double.tryParse(_tempController.text) ?? 0.0,
         "Heart_Rate": int.tryParse(_heartRateController.text) ?? 0,
@@ -43,15 +42,54 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
         "Eye_Discharge": _eyeDischarge ? "Yes" : "No",
       };
 
-      // Feedback visual temporário para o utilizador
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A processar os dados na Inteligência Artificial...')),
+        const SnackBar(content: Text('A analisar os dados na IA...')),
       );
-      
-      // Imprime na consola para podermos testar a estrutura de dados
-      print(dadosBovino);
-      
-      // TODO: Adicionar o pacote 'http' e fazer o pedido POST à API aqui.
+
+      try {
+        // IP atualizado para o endereço da sua máquina
+        final url = Uri.parse('http://192.168.68.107:8000/prever_doenca');
+        
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(dadosBovino),
+        );
+
+        if (response.statusCode == 200) {
+          final resultado = jsonDecode(response.body);
+          final doenca = resultado['doenca_prevista'];
+          final confianca = resultado['confianca_percentual'];
+
+          // Remove o SnackBar de carregamento
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+          // Exibe o diagnóstico final na tela!
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Diagnóstico da Inteligência Artificial', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Text(
+                'Risco Detetado:\n$doenca\n\nConfiança do Modelo: $confianca%',
+                style: const TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('ENTENDIDO'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          throw Exception('Falha ao comunicar com a API de Inteligência Artificial.');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: Não foi possível ligar ao servidor. Verifique o seu IP e a API.')),
+        );
+      }
     }
   }
 
