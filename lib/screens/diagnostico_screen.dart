@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+
 class DiagnosticoScreen extends StatefulWidget {
   const DiagnosticoScreen({Key? key}) : super(key: key);
 
@@ -28,6 +29,7 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
 
   void _analisarDiagnostico() async {
     if (_formKey.currentState!.validate()) {
+      // 1. Preparar os dados exatamente como a IA espera
       final dadosBovino = {
         "Body_Temperature": double.tryParse(_tempController.text) ?? 0.0,
         "Heart_Rate": int.tryParse(_heartRateController.text) ?? 0,
@@ -47,30 +49,27 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
       );
 
       try {
-        // IP atualizado para o endereço da sua máquina
-        final url = Uri.parse('http://192.168.68.107:8000/prever_doenca');
+        // 2. IP do teu computador onde está a correr a API em Python
+        final url = Uri.parse('http://192.168.68.105:8000/prever_doenca');
         
+        // 3. Fazer o pedido POST com um tempo limite de 10 segundos
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(dadosBovino),
-        );
+        ).timeout(const Duration(seconds: 10));
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
         if (response.statusCode == 200) {
           final resultado = jsonDecode(response.body);
-          final doenca = resultado['doenca_prevista'];
-          final confianca = resultado['confianca_percentual'];
-
-          // Remove o SnackBar de carregamento
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-          // Exibe o diagnóstico final na tela!
+          
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Diagnóstico da Inteligência Artificial', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text('Diagnóstico da IA', style: TextStyle(fontWeight: FontWeight.bold)),
               content: Text(
-                'Risco Detetado:\n$doenca\n\nConfiança do Modelo: $confianca%',
+                'Risco Detetado:\n${resultado['doenca_prevista']}\n\nConfiança: ${resultado['confianca_percentual']}%',
                 style: const TextStyle(fontSize: 16),
               ),
               actions: [
@@ -82,12 +81,23 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
             ),
           );
         } else {
-          throw Exception('Falha ao comunicar com a API de Inteligência Artificial.');
+          throw Exception('Erro de servidor: ${response.statusCode}');
         }
       } catch (e) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: Não foi possível ligar ao servidor. Verifique o seu IP e a API.')),
+        print("\n\n====== ERRO NA LIGAÇÃO ======");
+        print(e.toString());
+        print("=============================\n\n");
+        
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Erro de Ligação'),
+            content: Text('Não foi possível comunicar com o servidor da IA.\n\nDetalhe: $e'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))
+            ],
+          )
         );
       }
     }
@@ -98,6 +108,8 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Diagnóstico Inteligente (IA)'),
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -120,7 +132,7 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
                   prefixIcon: Icon(Icons.thermostat),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Por favor, insira a temperatura.';
+                  if (value == null || value.isEmpty) return 'Insira a temperatura.';
                   return null;
                 },
               ),
@@ -134,7 +146,7 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
                   prefixIcon: Icon(Icons.favorite),
                 ),
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Por favor, insira a frequência cardíaca.';
+                  if (value == null || value.isEmpty) return 'Insira a frequência cardíaca.';
                   return null;
                 },
               ),
@@ -144,8 +156,6 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
-              
-              // Interruptores para os sintomas
               SwitchListTile(
                 title: const Text('Perda de Apetite'),
                 value: _appetiteLoss,
@@ -192,15 +202,15 @@ class _DiagnosticoScreenState extends State<DiagnosticoScreen> {
                 onChanged: (val) => setState(() => _eyeDischarge = val),
               ),
               const SizedBox(height: 30),
-              
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Theme.of(context).primaryColor,
+                  backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _analisarDiagnostico,
-                child: const Text('Analisar Diagnóstico', style: TextStyle(fontSize: 16)),
+                child: const Text('Analisar Diagnóstico', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
