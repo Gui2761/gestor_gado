@@ -226,153 +226,155 @@ class _CadastroAnimalScreenState extends State<CadastroAnimalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.animalParaEditar == null ? "Novo Animal" : "Editar Animal")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        physics: const BouncingScrollPhysics(),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              GestureDetector(
-                onTap: _mostrarOpcoesFoto,
-                child: Container(
-                  height: 150, width: 150,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300], borderRadius: BorderRadius.circular(75),
-                    image: (_imagemSelecionada != null && _imagemSelecionada!.existsSync()) ? DecorationImage(image: FileImage(_imagemSelecionada!), fit: BoxFit.cover) : null
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: _mostrarOpcoesFoto,
+                  child: Container(
+                    height: 150, width: 150,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300], borderRadius: BorderRadius.circular(75),
+                      image: (_imagemSelecionada != null && _imagemSelecionada!.existsSync()) ? DecorationImage(image: FileImage(_imagemSelecionada!), fit: BoxFit.cover) : null
+                    ),
+                    child: _imagemSelecionada == null ? const Icon(Icons.add_a_photo, size: 40, color: Colors.grey) : null,
                   ),
-                  child: _imagemSelecionada == null ? const Icon(Icons.add_a_photo, size: 40, color: Colors.grey) : null,
                 ),
-              ),
-              const SizedBox(height: 20),
-              
-              TextFormField(
-                controller: _brincoController,
-                decoration: const InputDecoration(labelText: "Nº Brinco *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.tag)),
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.next, 
-                validator: (val) => val!.isEmpty ? "Obrigatório" : null,
-              ),
-              const SizedBox(height: 15),
-
-              TextFormField(
-                controller: _nomeController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: "Nome/Apelido", border: OutlineInputBorder(), prefixIcon: Icon(Icons.edit)),
-              ),
-              const SizedBox(height: 15),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _racaController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: "Raça *", border: OutlineInputBorder()),
-                      validator: (val) => val!.isEmpty ? "Obrigatório" : null,
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _pesoController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: "Peso (kg) *", border: OutlineInputBorder()),
-                      keyboardType: TextInputType.number,
-                      validator: (val) => val!.isEmpty ? "Obrigatório" : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-
-              // CAMPO DATA BONITO
-              TextFormField(
-                controller: _dataNascimentoController,
-                readOnly: true, 
-                onTap: _selecionarData,
-                decoration: const InputDecoration(
-                  labelText: "Nascimento (Para GTA)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.calendar_today, color: Colors.green),
-                  suffixIcon: Icon(Icons.arrow_drop_down),
-                ),
-              ),
-              
-              const SizedBox(height: 15),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _sexoSelecionado,
-                      decoration: const InputDecoration(labelText: "Sexo", border: OutlineInputBorder()),
-                      items: ['Macho', 'Fêmea'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (val) => setState(() => _sexoSelecionado = val!),
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _statusSelecionado,
-                      decoration: const InputDecoration(labelText: "Status", border: OutlineInputBorder()),
-                      items: ['Ativo', 'Vendido', 'Morto', 'Doente'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (val) => setState(() => _statusSelecionado = val!),
-                    ),
-                  ),
-                ],
-              ),
-
-              if (_statusSelecionado == 'Vendido') ...[
                 const SizedBox(height: 20),
+                
                 TextFormField(
-                  controller: _valorVendaController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 18),
-                  decoration: InputDecoration(
-                    labelText: "Valor da Venda (R\$)",
-                    prefixIcon: const Icon(Icons.monetization_on, color: Colors.green),
-                    filled: true,
-                    fillColor: Colors.green.withOpacity(0.1),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.green, width: 2)),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.only(top: 5, left: 10),
-                  child: Text("Alterando este valor, o Financeiro atualiza automaticamente.", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                ),
-              ],
-
-              const SizedBox(height: 30),
-
-              if (widget.animalParaEditar != null) ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => HistoricoSaudeScreen(animal: widget.animalParaEditar!)));
-                    },
-                    icon: const Icon(Icons.health_and_safety, color: Colors.teal),
-                    label: const Text("ABRIR PRONTUÁRIO VETERINÁRIO", style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+                  controller: _brincoController,
+                  decoration: const InputDecoration(labelText: "Nº Brinco *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.tag)),
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.next, 
+                  validator: (val) => val!.isEmpty ? "Obrigatório" : null,
                 ),
                 const SizedBox(height: 15),
-              ],
-
-              SizedBox(
-                width: double.infinity, height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _salvarAnimal,
-                  icon: const Icon(Icons.save),
-                  label: Text(widget.animalParaEditar == null ? "CADASTRAR" : "SALVAR ALTERAÇÕES"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+  
+                TextFormField(
+                  controller: _nomeController,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: "Nome/Apelido", border: OutlineInputBorder(), prefixIcon: Icon(Icons.edit)),
                 ),
-              ),
-              
-              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 80),
-            ],
+                const SizedBox(height: 15),
+  
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _racaController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(labelText: "Raça *", border: OutlineInputBorder()),
+                        validator: (val) => val!.isEmpty ? "Obrigatório" : null,
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _pesoController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(labelText: "Peso (kg) *", border: OutlineInputBorder()),
+                        keyboardType: TextInputType.number,
+                        validator: (val) => val!.isEmpty ? "Obrigatório" : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+  
+                // CAMPO DATA BONITO
+                TextFormField(
+                  controller: _dataNascimentoController,
+                  readOnly: true, 
+                  onTap: _selecionarData,
+                  decoration: const InputDecoration(
+                    labelText: "Nascimento (Para GTA)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.calendar_today, color: Colors.green),
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                ),
+                
+                const SizedBox(height: 15),
+  
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _sexoSelecionado,
+                        decoration: const InputDecoration(labelText: "Sexo", border: OutlineInputBorder()),
+                        items: ['Macho', 'Fêmea'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                        onChanged: (val) => setState(() => _sexoSelecionado = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _statusSelecionado,
+                        decoration: const InputDecoration(labelText: "Status", border: OutlineInputBorder()),
+                        items: ['Ativo', 'Vendido', 'Morto', 'Doente'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                        onChanged: (val) => setState(() => _statusSelecionado = val!),
+                      ),
+                    ),
+                  ],
+                ),
+  
+                if (_statusSelecionado == 'Vendido') ...[
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _valorVendaController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 18),
+                    decoration: InputDecoration(
+                      labelText: "Valor da Venda (R\$)",
+                      prefixIcon: const Icon(Icons.monetization_on, color: Colors.green),
+                      filled: true,
+                      fillColor: Colors.green.withOpacity(0.1),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.green, width: 2)),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 5, left: 10),
+                    child: Text("Alterando este valor, o Financeiro atualiza automaticamente.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ),
+                ],
+  
+                const SizedBox(height: 30),
+  
+                if (widget.animalParaEditar != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => HistoricoSaudeScreen(animal: widget.animalParaEditar!)));
+                      },
+                      icon: const Icon(Icons.health_and_safety, color: Colors.teal),
+                      label: const Text("ABRIR PRONTUÁRIO VETERINÁRIO", style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                ],
+  
+                SizedBox(
+                  width: double.infinity, height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _salvarAnimal,
+                    icon: const Icon(Icons.save),
+                    label: Text(widget.animalParaEditar == null ? "CADASTRAR" : "SALVAR ALTERAÇÕES"),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),

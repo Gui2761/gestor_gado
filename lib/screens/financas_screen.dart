@@ -94,128 +94,130 @@ class _FinancasScreenState extends State<FinancasScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              // ESSE PADDING AQUI EMPURRA O MODAL PRA CIMA DO TECLADO
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: Container(
-                height: 600, 
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1E1E1E), 
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
-                ),
-                padding: const EdgeInsets.only(left: 20, right: 20, top: 20),
-                child: Column(
-                  children: [
-                    Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(10))),
-                    const SizedBox(height: 20),
-                    
-                    const Text("Nova Movimentação", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 30),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setModalState(() => tipoSelecionado = 'VENDA'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              decoration: BoxDecoration(
-                                color: tipoSelecionado == 'VENDA' ? Colors.green.withOpacity(0.2) : Colors.grey[900],
-                                border: Border.all(color: tipoSelecionado == 'VENDA' ? Colors.green : Colors.transparent, width: 2),
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.arrow_upward, color: Colors.green),
-                                  const SizedBox(height: 5),
-                                  Text("ENTRADA", style: TextStyle(color: tipoSelecionado == 'VENDA' ? Colors.green : Colors.grey, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setModalState(() => tipoSelecionado = 'DESPESA'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 15),
-                              decoration: BoxDecoration(
-                                color: tipoSelecionado == 'DESPESA' ? Colors.red.withOpacity(0.2) : Colors.grey[900],
-                                border: Border.all(color: tipoSelecionado == 'DESPESA' ? Colors.red : Colors.transparent, width: 2),
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.arrow_downward, color: Colors.red),
-                                  const SizedBox(height: 5),
-                                  Text("SAÍDA", style: TextStyle(color: tipoSelecionado == 'DESPESA' ? Colors.red : Colors.grey, fontWeight: FontWeight.bold)),
-                                ],
+            return SafeArea(
+              child: Padding(
+                // ESSE PADDING AQUI EMPURRA O MODAL PRA CIMA DO TECLADO
+                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                child: Container(
+                  height: 600, 
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E1E1E), 
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(25.0)),
+                  ),
+                  padding: const EdgeInsets.only(left: 20, right: 20, top: 20),
+                  child: Column(
+                    children: [
+                      Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(10))),
+                      const SizedBox(height: 20),
+                      
+                      const Text("Nova Movimentação", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 30),
+  
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setModalState(() => tipoSelecionado = 'VENDA'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                decoration: BoxDecoration(
+                                  color: tipoSelecionado == 'VENDA' ? Colors.green.withOpacity(0.2) : Colors.grey[900],
+                                  border: Border.all(color: tipoSelecionado == 'VENDA' ? Colors.green : Colors.transparent, width: 2),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.arrow_upward, color: Colors.green),
+                                    const SizedBox(height: 5),
+                                    Text("ENTRADA", style: TextStyle(color: tipoSelecionado == 'VENDA' ? Colors.green : Colors.grey, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setModalState(() => tipoSelecionado = 'DESPESA'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                decoration: BoxDecoration(
+                                  color: tipoSelecionado == 'DESPESA' ? Colors.red.withOpacity(0.2) : Colors.grey[900],
+                                  border: Border.all(color: tipoSelecionado == 'DESPESA' ? Colors.red : Colors.transparent, width: 2),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.arrow_downward, color: Colors.red),
+                                    const SizedBox(height: 5),
+                                    Text("SAÍDA", style: TextStyle(color: tipoSelecionado == 'DESPESA' ? Colors.red : Colors.grey, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 25),
+  
+                      TextField(
+                        controller: descricaoController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Descrição",
+                          hintText: "Ex: Venda de gado, Ração...",
+                          labelStyle: TextStyle(color: Colors.grey[400]),
+                          filled: true,
+                          fillColor: Colors.grey[900],
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          prefixIcon: const Icon(Icons.description, color: Colors.grey),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-
-                    TextField(
-                      controller: descricaoController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: "Descrição",
-                        hintText: "Ex: Venda de gado, Ração...",
-                        labelStyle: TextStyle(color: Colors.grey[400]),
-                        filled: true,
-                        fillColor: Colors.grey[900],
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        prefixIcon: const Icon(Icons.description, color: Colors.grey),
                       ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    TextField(
-                      controller: valorController,
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: "Valor (R\$)",
-                        hintText: "0.00",
-                        labelStyle: TextStyle(color: Colors.grey[400]),
-                        filled: true,
-                        fillColor: Colors.grey[900],
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        prefixIcon: const Icon(Icons.attach_money, color: Colors.grey),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (valorController.text.isNotEmpty && descricaoController.text.isNotEmpty) {
-                            final nova = Transacao(
-                              tipo: tipoSelecionado,
-                              descricao: descricaoController.text,
-                              valor: double.parse(valorController.text.replaceAll(',', '.')),
-                              data: DateTime.now().toString(),
-                            );
-                            await DatabaseHelper.instance.insertTransacao(nova.toMap());
-                            Navigator.pop(context);
-                            _carregarDados();
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: tipoSelecionado == 'VENDA' ? Colors.green[700] : Colors.red[700],
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      const SizedBox(height: 15),
+  
+                      TextField(
+                        controller: valorController,
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: "Valor (R\$)",
+                          hintText: "0.00",
+                          labelStyle: TextStyle(color: Colors.grey[400]),
+                          filled: true,
+                          fillColor: Colors.grey[900],
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          prefixIcon: const Icon(Icons.attach_money, color: Colors.grey),
                         ),
-                        child: const Text("SALVAR MOVIMENTAÇÃO", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 30),
+  
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (valorController.text.isNotEmpty && descricaoController.text.isNotEmpty) {
+                              final nova = Transacao(
+                                tipo: tipoSelecionado,
+                                descricao: descricaoController.text,
+                                valor: double.parse(valorController.text.replaceAll(',', '.')),
+                                data: DateTime.now().toString(),
+                              );
+                              await DatabaseHelper.instance.insertTransacao(nova.toMap());
+                              Navigator.pop(context);
+                              _carregarDados();
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: tipoSelecionado == 'VENDA' ? Colors.green[700] : Colors.red[700],
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          ),
+                          child: const Text("SALVAR MOVIMENTAÇÃO", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

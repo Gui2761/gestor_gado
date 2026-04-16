@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 // Importa o teu modelo offline!
 import '../ml/modelo_ia.dart'; 
+import '../models/animal.dart';
+import '../models/manejo.dart';
+import '../database/database_helper.dart';
 
 class ChatMessage {
   final String text;
@@ -9,7 +12,8 @@ class ChatMessage {
 }
 
 class ChatDiagnosticoScreen extends StatefulWidget {
-  const ChatDiagnosticoScreen({Key? key}) : super(key: key);
+  final Animal animal;
+  const ChatDiagnosticoScreen({Key? key, required this.animal}) : super(key: key);
 
   @override
   _ChatDiagnosticoScreenState createState() => _ChatDiagnosticoScreenState();
@@ -39,49 +43,48 @@ class _ChatDiagnosticoScreenState extends State<ChatDiagnosticoScreen> {
     "Apresenta Corrimento Ocular? (Sim ou Não)"
   ];
 
-
   final List<String> listaDoencas = [
-    'Actinobacillus Pleuropneumonia', 'Actinobacillus Suis', 'African Swine Fever', 
-    'Allergic Rhinitis', 'Arthritis', 'Blue Tongue', 'Blue Tongue Disease', 
-    'Blue Tongue Virus', 'Bluetongue', 'Bluetongue Virus', 'Bordetella Infection', 
-    'Bovine Coccidiosis', 'Bovine Influenza', "Bovine Johne's Disease", 
-    'Bovine Leukemia Virus', 'Bovine Mastitis', 'Bovine Parainfluenza', 
-    'Bovine Pneumonia', 'Bovine Respiratory Disease', 'Bovine Respiratory Disease Complex', 
-    'Bovine Respiratory Syncytial Virus', 'Bovine Tuberculosis', 'Bovine Viral Diarrhea', 
-    'Canine Cough', 'Canine Distemper', 'Canine Flu', 'Canine Heartworm Disease', 
-    'Canine Hepatitis', 'Canine Infectious Hepatitis', 'Canine Influenza', 
-    'Canine Leptospirosis', 'Canine Parvovirus', 'Caprine Arthritis', 
-    'Caprine Arthritis Encephalitis', 'Caprine Arthritis Encephalitis Virus', 
-    'Caprine Pleuropneumonia', 'Caprine Respiratory Disease', 'Caprine Viral Arthritis', 
-    'Caseous Lymphadenitis', 'Chlamydia in Sheep', 'Chronic Bronchitis', 
-    'Coccidiosis', 'Conjunctivitis', 'Contagious Abortion', 'Contagious Ecthyma', 
-    'Cryptosporidiosis', 'Degenerative Joint Disease', 'Distemper', 'Enteritis', 
-    'Equine Arthritis', "Equine Cushing's Disease", 'Equine Encephalitis', 
-    'Equine Encephalomyelitis', 'Equine Herpesvirus', 'Equine Infectious Anemia', 
-    'Equine Influenza', 'Equine Influenza Virus', 'Equine Laminitis', 
-    'Equine Leptospirosis', 'Equine Lyme Disease', 'Equine Metabolic Syndrome', 
-    'Equine Osteoarthritis', 'Equine Piroplasmosis', 'Equine Pneumonia', 
-    'Equine Protozoal Myeloencephalitis', 'Equine Rhinopneumonitis', 'Equine Viral Arteritis', 
-    'Equine West Nile Virus', 'Feline Asthma', 'Feline Calicivirus', 'Feline Chlamydia', 
-    'Feline Chlamydiosis', 'Feline Coronavirus', 'Feline Herpesvirus', 
-    'Feline Immunodeficiency Virus', 'Feline Infectious Peritonitis', 'Feline Leukemia', 
-    'Feline Leukemia Virus', 'Feline Panleukopenia', 'Feline Panleukopenia Virus', 
-    'Feline Renal Disease', 'Feline Respiratory Disease Complex', 'Feline Respiratory Infection', 
-    'Feline Rhinotracheitis', 'Feline Upper Respiratory Infection', 'Feline Viral Rhinotracheitis', 
-    'Foot and Mouth Disease', 'Foot-and-Mouth Disease', 'Footrot', 'Fungal Infection', 
-    'Gastroenteritis', 'Gastrointestinal Infection', 'Gastrointestinal Stasis', 
-    'Giardiasis', 'Goat Pox', 'Heartworm Disease', 'Hyperthyroidism', 
-    'Inflammatory Bowel Disease', 'Intestinal Parasites', "Johne's Disease", 
-    'Kennel Cough', 'Laminitis', 'Leptospirosis', 'Lyme Disease', 'Maedi-Visna', 
-    'Mastitis', 'Myxomatosis', 'Pancreatitis', 'Panleukopenia', 'Parvovirus', 
-    'Pasteurellosis', 'Pneumonia', 'Porcine Circovirus Disease', 'Porcine Epidemic Diarrhea', 
-    'Porcine Epidemic Diarrhea Virus', 'Porcine Reproductive and Respiratory Syndrome', 
-    'Porcine Respiratory Disease Complex', 'Rabbit Calicivirus', 'Rabbit Hemorrhagic Disease', 
-    'Rabbit Syphilis', 'Rabbit Viral Hemorrhagic Disease', 'Respiratory Infection', 
-    'Respiratory Syncytial Virus', 'Ringworm', 'Salmonellosis', 'Scrapie', 'Scrapie Disease', 
-    'Snuffles', 'Strangles', 'Swine Dysentery', 'Swine Erysipelas', 'Swine Fever', 
-    'Swine Flu', 'Swine Influenza', 'Tick-Borne Disease', 'Tuberculosis', 
-    'Upper Respiratory Infection', 'Viral Hemorrhagic Disease', 'West Nile Virus'
+    'Pleuropneumonia por Actinobacillus', 'Actinobacillus Suis', 'Peste Suína Africana', 
+    'Rinite Alérgica', 'Artrite', 'Língua Azul', 'Doença da Língua Azul', 
+    'Vírus da Língua Azul', 'Língua Azul (Variante)', 'Vírus da Língua Azul (Variante)', 'Infecção por Bordetella', 
+    'Coccidiose Bovina', 'Gripe Bovina', "Doença de Johne Bovina", 
+    'Vírus da Leucemia Bovina', 'Mastite Bovina', 'Parainfluenza Bovina', 
+    'Pneumonia Bovina', 'Doença Respiratória Bovina', 'Complexo de Doença Respiratória Bovina', 
+    'Vírus Sincicial Respiratório Bovino', 'Tuberculose Bovina', 'Diarreia Viral Bovina', 
+    'Tosse dos Canis', 'Cinomose Canina', 'Gripe Canina', 'Verme do Coração Canino', 
+    'Hepatite Canina', 'Hepatite Infecciosa Canina', 'Influenza Canina', 
+    'Leptospirose Canina', 'Parvovirose Canina', 'Artrite Caprina', 
+    'Encefalite da Artrite Caprina', 'Vírus da Encefalite da Artrite Caprina', 
+    'Pleuropneumonia Caprina', 'Doença Respiratória Caprina', 'Artrite Viral Caprina', 
+    'Linfadenite Caseosa', 'Clamídia em Ovinos', 'Bronquite Crônica', 
+    'Coccidiose', 'Conjuntivite', 'Aborto Contagioso', 'Ectima Contagioso', 
+    'Criptosporidiose', 'Doença Articular Degenerativa', 'Cinomose', 'Enterite', 
+    'Artrite Equina', "Doença de Cushing Equina", 'Encefalite Equina', 
+    'Encefalomielite Equina', 'Herpesvírus Equino', 'Anemia Infecciosa Equina', 
+    'Gripe Equina', 'Vírus da Influenza Equina', 'Laminite Equina', 
+    'Leptospirose Equina', 'Doença de Lyme Equina', 'Síndrome Metabólica Equina', 
+    'Osteoartrite Equina', 'Piroplasmose Equina', 'Pneumonia Equina', 
+    'Mieloencefalite Protozoária Equina', 'Rinopneumonite Equina', 'Arterite Viral Equina', 
+    'Vírus do Nilo Ocidental Equino', 'Asma Felina', 'Calicivírus Felino', 'Clamídia Felina', 
+    'Clamidiose Felina', 'Coronavírus Felino', 'Herpesvírus Felino', 
+    'Vírus da Imunodeficiência Felina', 'Peritonite Infecciosa Felina', 'Leucemia Felina', 
+    'Vírus da Leucemia Felina', 'Panleucopenia Felina', 'Vírus da Panleucopenia Felina', 
+    'Doença Renal Felina', 'Complexo de Doença Respiratória Felina', 'Infecção Respiratória Felina', 
+    'Rinotraqueíte Felina', 'Infecção Respiratória Superior Felina', 'Rinotraqueíte Viral Felina', 
+    'Febre Aftosa', 'Febre Aftosa (Variante)', 'Podridão dos Pés (Footrot)', 'Infecção Fúngica', 
+    'Gastroenterite', 'Infecção Gastrointestinal', 'Estase Gastrointestinal', 
+    'Giardíase', 'Variola Caprina', 'Doença do Verme do Coração', 'Hipertireoidismo', 
+    'Doença Inflamatória Intestinal', 'Parasitas Intestinais', "Doença de Johne", 
+    'Tosse dos Canis (Kennel Cough)', 'Laminite', 'Leptospirose', 'Doença de Lyme', 'Maedi-Visna', 
+    'Mastite', 'Mixomatose', 'Pancreatite', 'Panleucopenia', 'Parvovírus', 
+    'Pasteurelose', 'Pneumonia', 'Doença do Circovírus Suíno', 'Diarreia Epidêmica Suína', 
+    'Vírus da Diarreia Epidêmica Suína', 'Síndrome Respiratória e Reprodutiva Suína', 
+    'Complexo de Doença Respiratória Suína', 'Calicivírus de Coelho', 'Doença Hemorrágica de Coelho', 
+    'Sífilis de Coelho', 'Doença Hemorrágica Viral de Coelho', 'Infecção Respiratória', 
+    'Vírus Sincicial Respiratório', 'Micose (Ringworm)', 'Salmonelose', 'Scrapie', 'Doença de Scrapie', 
+    'Coriza (Snuffles)', 'Garrotilho', 'Disenteria Suína', 'Erisipela Suína', 'Peste Suína', 
+    'Gripe Suína', 'Influenza Suína', 'Doença Transmitida por Carrapatos', 'Tuberculose', 
+    'Infecção Respiratória Superior', 'Doença Hemorrágica Viral', 'Vírus do Nilo Ocidental'
   ];
 
   @override
@@ -180,9 +183,19 @@ class _ChatDiagnosticoScreenState extends State<ChatDiagnosticoScreen> {
         String doencaPrevista = listaDoencas[maxIndex];
         String confianca = (maxScore * 100).toStringAsFixed(1);
 
+        // --- SALVAR NO PRONTUÁRIO AUTOMATICAMENTE ---
+        final novoManejo = Manejo(
+          animalId: widget.animal.id!,
+          categoria: 'IA - Diagnóstico',
+          nome: doencaPrevista,
+          data: DateTime.now().toString(),
+          observacao: 'Confiança: $confianca%',
+        );
+        DatabaseHelper.instance.insertManejo(novoManejo.toMap());
+
         setState(() {
           mensagens.removeLast(); // Remove o "A analisar..."
-          _adicionarMensagemIA("✅ **Diagnóstico Concluído!**\n\nPossível Doença: **$doencaPrevista**\nConfiança: $confianca%\n\nLembre-se: Consulte sempre um veterinário para confirmar.");
+          _adicionarMensagemIA("✅ **Diagnóstico Concluído!**\n\nPossível Doença: **$doencaPrevista**\nConfiança: $confianca%\n\nLembre-se: O registro foi guardado no prontuário do animal.");
         });
       } catch (e) {
         _adicionarMensagemIA("Ocorreu um erro ao processar os dados. Tente novamente.");
@@ -195,9 +208,10 @@ class _ChatDiagnosticoScreenState extends State<ChatDiagnosticoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Assistente Virtual IA'),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
       ),
+      backgroundColor: Colors.black, 
       body: Column(
         children: [
           Expanded(
@@ -213,17 +227,18 @@ class _ChatDiagnosticoScreenState extends State<ChatDiagnosticoScreen> {
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: msg.isUser ? Colors.deepPurple[100] : Colors.grey[200],
+                      color: msg.isUser ? Colors.green[900] : Colors.grey[900],
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
                         bottomLeft: msg.isUser ? const Radius.circular(16) : const Radius.circular(0),
                         bottomRight: msg.isUser ? const Radius.circular(0) : const Radius.circular(16),
                       ),
+                      border: Border.all(color: msg.isUser ? Colors.green.withOpacity(0.3) : Colors.grey[800]!),
                     ),
                     child: Text(
                       msg.text,
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16, color: Colors.white),
                     ),
                   ),
                 );
@@ -231,34 +246,82 @@ class _ChatDiagnosticoScreenState extends State<ChatDiagnosticoScreen> {
             ),
           ),
           if (!diagnosticoConcluido)
-            Container(
-              padding: const EdgeInsets.all(8.0),
-              color: Colors.white,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      decoration: InputDecoration(
-                        hintText: perguntaAtualIndex < 2 ? "Digite o valor..." : "Digite Sim ou Não...",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: Colors.black,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (perguntaAtualIndex >= 2) ...[
+                      // BOTÕES DE RESPOSTA RÁPIDA (SIM/NÃO)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey[900],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () => _processarResposta("Não"),
+                              child: const Text("NÃO", style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () => _processarResposta("Sim"),
+                              child: const Text("SIM", style: TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
                       ),
-                      keyboardType: perguntaAtualIndex < 2 ? TextInputType.number : TextInputType.text,
-                      onSubmitted: _processarResposta,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.deepPurple,
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: () => _processarResposta(_textController.text),
-                    ),
-                  ),
-                ],
+                      const SizedBox(height: 8),
+                    ],
+                    // CAMPO DE TEXTO (Apenas para Temperatura/Batimentos ou se o utilizador quiser digitar)
+                    if (perguntaAtualIndex < 2)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _textController,
+                              style: const TextStyle(color: Colors.white),
+                              autofocus: true,
+                              decoration: InputDecoration(
+                                hintText: "Digite o valor numérico...",
+                                hintStyle: const TextStyle(color: Colors.grey),
+                                filled: true,
+                                fillColor: Colors.grey[900],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              ),
+                              keyboardType: TextInputType.number,
+                              onSubmitted: _processarResposta,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            backgroundColor: Colors.green[700],
+                            child: IconButton(
+                              icon: const Icon(Icons.send, color: Colors.white),
+                              onPressed: () => _processarResposta(_textController.text),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
         ],

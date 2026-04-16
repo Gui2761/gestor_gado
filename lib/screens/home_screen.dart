@@ -85,25 +85,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Wrap(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.description, color: Colors.blue),
-            title: const Text("Documento para GTA"),
-            subtitle: const Text("Contagem + Vacinas Recentes"),
-            onTap: () { 
-              Navigator.pop(ctx); 
-              // Passa a lista de animais E a lista de vacinas
-              PdfService().gerarRelatorioGTA(_animaisFiltrados, listaManejo); 
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.list_alt, color: Colors.green),
-            title: const Text("Relatório Geral"),
-            subtitle: const Text("Lista simples do rebanho"),
-            onTap: () { Navigator.pop(ctx); PdfService().gerarRelatorioGeral(_animaisFiltrados); },
-          ),
-        ],
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.description, color: Colors.blue),
+              title: const Text("Documento para GTA"),
+              subtitle: const Text("Contagem + Vacinas Recentes"),
+              onTap: () { 
+                Navigator.pop(ctx); 
+                // Passa a lista de animais E a lista de vacinas
+                PdfService().gerarRelatorioGTA(_animaisFiltrados, listaManejo); 
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.list_alt, color: Colors.green),
+              title: const Text("Relatório Geral"),
+              subtitle: const Text("Lista simples do rebanho"),
+              onTap: () { Navigator.pop(ctx); PdfService().gerarRelatorioGeral(_animaisFiltrados); },
+            ),
+          ],
+        ),
       ),
     );
   }

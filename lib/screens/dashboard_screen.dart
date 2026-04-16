@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/animal.dart';
 import '../models/transacao.dart';
-import 'diagnostico_screen.dart'; // <-- Nova importação do ecrã de IA
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -67,122 +67,101 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(title: const Text("Painel de Gestão")),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator()) 
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // --- BOTÃO: DIAGNÓSTICO INTELIGENTE (IA) ---
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.psychology, size: 28),
-                  label: const Text(
-                    "Diagnóstico Inteligente (IA)", 
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    // Navegação para o novo ecrã
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const DiagnosticoScreen()),
-                    );
-                  },
-                ),
-                
-                const SizedBox(height: 20),
-
-                // --- CARD 1: REBANHO (GRÁFICO PIZZA) ---
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        const Text("Composição do Rebanho", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 200,
-                          child: (_totalMachos == 0 && _totalFemeas == 0) 
-                            ? const Center(child: Text("Sem dados"))
-                            : PieChart(
-                                PieChartData(
-                                  sections: [
-                                    PieChartSectionData(
-                                      value: _totalMachos.toDouble(),
-                                      title: "$_totalMachos",
-                                      color: Colors.blue,
-                                      radius: 50,
-                                      titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
-                                    ),
-                                    PieChartSectionData(
-                                      value: _totalFemeas.toDouble(),
-                                      title: "$_totalFemeas",
-                                      color: Colors.pinkAccent,
-                                      radius: 50,
-                                      titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
-                                    ),
-                                  ],
-                                  sectionsSpace: 2,
-                                  centerSpaceRadius: 40,
+        : SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
+  
+                  // --- CARD 1: REBANHO (GRÁFICO PIZZA) ---
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          const Text("Composição do Rebanho", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            height: 200,
+                            child: (_totalMachos == 0 && _totalFemeas == 0) 
+                              ? const Center(child: Text("Sem dados"))
+                              : PieChart(
+                                  PieChartData(
+                                    sections: [
+                                      PieChartSectionData(
+                                        value: _totalMachos.toDouble(),
+                                        title: "$_totalMachos",
+                                        color: Colors.blue,
+                                        radius: 50,
+                                        titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+                                      ),
+                                      PieChartSectionData(
+                                        value: _totalFemeas.toDouble(),
+                                        title: "$_totalFemeas",
+                                        color: Colors.pinkAccent,
+                                        radius: 50,
+                                        titleStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+                                      ),
+                                    ],
+                                    sectionsSpace: 2,
+                                    centerSpaceRadius: 40,
+                                  ),
                                 ),
-                              ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _legenda(Colors.blue, "Machos"),
-                            const SizedBox(width: 20),
-                            _legenda(Colors.pinkAccent, "Fêmeas"),
-                          ],
-                        )
-                      ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _legenda(Colors.blue, "Machos"),
+                              const SizedBox(width: 20),
+                              _legenda(Colors.pinkAccent, "Fêmeas"),
+                            ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // --- CARD 2: RESUMO FINANCEIRO ---
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      children: [
-                        const Text("Balanço Financeiro", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 20),
-                        _linhaFinanceira("Receita Total", _receita, Colors.green),
-                        const Divider(),
-                        _linhaFinanceira("Despesas", _despesa, Colors.red),
-                        const Divider(),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text("LUCRO LÍQUIDO", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text(
-                              "R\$ ${(_receita - _despesa).toStringAsFixed(2)}",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold, 
-                                fontSize: 18,
-                                color: (_receita - _despesa) >= 0 ? Colors.green[700] : Colors.red[700]
-                              ),
-                            )
-                          ],
-                        )
-                      ],
+  
+                  const SizedBox(height: 20),
+  
+                  // --- CARD 2: RESUMO FINANCEIRO ---
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          const Text("Balanço Financeiro", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 20),
+                          _linhaFinanceira("Receita Total", _receita, Colors.green),
+                          const Divider(),
+                          _linhaFinanceira("Despesas", _despesa, Colors.red),
+                          const Divider(),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("LUCRO LÍQUIDO", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text(
+                                "R\$ ${(_receita - _despesa).toStringAsFixed(2)}",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold, 
+                                  fontSize: 18,
+                                  color: (_receita - _despesa) >= 0 ? Colors.green[700] : Colors.red[700]
+                                ),
+                              )
+                            ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
     );
