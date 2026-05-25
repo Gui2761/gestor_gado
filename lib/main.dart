@@ -1,11 +1,20 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // <--- IMPORTANTE: Import da tradução
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'services/notification_service.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // --- INICIALIZAÇÃO DO BANCO PARA DESKTOP ---
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
   // INICIALIZA AS NOTIFICAÇÕES
   await NotificationService().init();
 
